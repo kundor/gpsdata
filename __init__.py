@@ -14,6 +14,8 @@ as much of this data as is available.
 
 rinex.read_rinex() constructs a GPSData object from a RINEX observations file.
 
+gpstime contains timezones (tzinfo inheritors) for UTC, TAI, and GPS Time.
+
 An IGRF (geomagnetic field model) calculator will be added, as will
 read_nmea() and read_novatel().
 '''

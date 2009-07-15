@@ -22,22 +22,16 @@ from string import strip
 from warnings import warn
 from optparse import OptionParser
 from crx2rnx import crx2rnx, CR_VER
-from gpsdata import value, record, timestruct, GPSData
+from gpsdata import value, GPSData
+from gpstime import gpsdatetime, gpstz, utctz, taitz
 
 RNX_VER = '2.11'
-__ver__ = '0.1'
+__ver__ = '0.2'
 
 btog = lambda c : 'G' if c in (None, '', ' ') else c.upper()
 toint = lambda x : 0 if x is None or x.strip() == '' else int(x)
 tofloat = lambda x : 0. if x is None or x.strip() == '' else float(x)
 to3float = lambda s : tuple(tofloat(s[k*14:(k+1)*14]) for k in (0,1,2))
-
-def satsystem(c):
-    if c.upper() == 'R': # GLONASS
-        timestruct.timesys = 'GLO'
-    elif c.upper() == 'E': # Galileo
-        timestruct.timesys = 'GAL'
-    return btog(c)
 
 def versioncheck(ver):
     nums = ver.split('.')
@@ -54,21 +48,19 @@ def iso(c):
         raise IOError('RINEX File is not observation data')
     return c.upper()
 
-def parsetime(s, tight=False):
+def parsetime(s, tight=False, baseyear=1900):
     width = 3 if tight else 6
     secwidth = 11 if tight else 13
     year = toint(s[0 : width])
+    if tight:
+        year += (baseyear/100)*100
     month = toint(s[width : width * 2])
     day = toint(s[width * 2 : width * 3])
     hour = toint(s[width * 3 : width * 4])
     minute = toint(s[width * 4 : width * 5])
     second = tofloat(s[width * 5 : width * 5 + secwidth])
-    if not tight:
-        ts = s[48:51].strip()
-        timesys = None if ts == '' else ts.upper()
-    else:
-        timesys = None
-    return timestruct(year, month, day, hour, minute, second, timesys)
+    usec = (second - int(second)) * 1000000
+    return gpsdatetime(year, month, day, hour, minute, int(second), usec, None)
 
 class wavelength(object):
 # if prn list is empty (numsats = 0), L1/2 ambiguity applies to all satellites
@@ -156,7 +148,7 @@ class fields(object):
         # 2 : replace
         # 3 : append to list, with record number
         # 4 : ignore
-        # 5 : replace if recordnum hasn't changed
+        # 5 : replace if recordnum hasn't changed, else append to list
     def __iter__(self):
         return iter(self.mems)
     def __getitem__(self, index):
@@ -167,7 +159,7 @@ class fields(object):
 RINEX = {
     'RINEX VERSION / TYPE' : fields((('rnxver', 0, 9, versioncheck),
                               ('filetype', 20, 21, iso),
-                              ('satsystem', 40, 41, satsystem))),
+                              ('satsystem', 40, 41, btog))),
     'PGM / RUN BY/ DATE  ' : fields((('rnxprog', 0, 20), # gps-scinda
                               ('agency', 20, 40),
                               ('filedate', 40, 60))),
@@ -189,9 +181,11 @@ RINEX = {
     'WAVELENGTH FACT L1/2' : fields((('ambiguity', 0, 53, wavelength()),), 5),
     '# / TYPES OF OBSERV ' : fields((('obscodes', 0, 60, obscode()),), 5),
     'INTERVAL            ' : fields((('obsinterval', 0, 10, tofloat),), 3),
-    'TIME OF FIRST OBS   ' : fields((('firsttime', 0, 51, parsetime),), 1),
-    'TIME OF LAST OBS    ' : fields((('endtime', 0, 51, parsetime),)),
-    # endtime.timesys must agree with firsttime.timesys
+    'TIME OF FIRST OBS   ' : fields((('firsttime', 0, 43, parsetime),
+                              ('firsttimesys', 48, 51)), 1),
+    'TIME OF LAST OBS    ' : fields((('endtime', 0, 43, parsetime),
+                              ('endtimesys', 48, 51))),
+    # end timesys must agree with first timesys
     'RCV CLOCK OFFS APPL ' : fields((('receiverclockcorrection', 0, 6, toint),), 3),
     'LEAP SECONDS        ' : fields((('leapseconds', 0, 6, toint),), 3),
     '# OF SATELLITES     ' : fields((('numsatellites', 0, 6, toint),)),
@@ -204,8 +198,10 @@ def get_data(fid):
     fid.seek(0)
     obsdata = GPSData() 
     sawrec = {}
+    obspersat = {}
     recordnum = 0
     procheader(fid, obsdata.rnx, sawrec, recordnum)
+    baseyear = obsdata.timesetup()
     while True:
         try:
             line = fid.next().rstrip('\n')
@@ -213,7 +209,7 @@ def get_data(fid):
             break
         if line == '':
             break
-        epoch = parsetime(line[0:26], True)
+        epoch = parsetime(line[0:26], True, baseyear)
         flag = toint(line[28:29])
 # 0: Observations.
 #  1: Power failure occured since last record.
@@ -230,7 +226,7 @@ def get_data(fid):
         elif 2 <= flag <= 4:
             procheader(fid, obsdata.rnx, sawrec, recordnum, numrec)
         elif 0 <= flag <= 1:
-            obsdata += [record(epoch, not flag, tofloat(line[68:80]))]
+            obsdata.append(epoch, not flag, tofloat(line[68:80]))
             prnlist = []
             while True:
                 for s in range(min(numrec, 12)):
@@ -242,14 +238,9 @@ def get_data(fid):
                     line = fid.next().rstrip('\n')
                 else:
                     break
-            if 'obscodes' not in obsdata.rnx:
-                raise RuntimeError('RINEX file did not define data records')
-            elif type(obsdata.rnx['obscodes'][0]) is tuple:
-                obscodes = obsdata.rnx['obscodes'][-1][0]
-            else:
-                obscodes = obsdata.rnx['obscodes']
             for prn in prnlist:
-                for (obs, s) in zip(obscodes, range(len(obscodes))):
+                numobs = obspersat.setdefault(prn, {})
+                for (obs, s) in zip(obsdata.obscodes(), xrange(100)):
                     s = s % 5
                     if not s:
                         line = fid.next().rstrip('\n')
@@ -261,19 +252,23 @@ def get_data(fid):
                         ambig = obsdata.rnx['ambiguity'][-1][0]
                     else:
                         ambig = obsdata.rnx['ambiguity']
-                    if (LLI >> 1) % 2 and prn[0] == 'G' and freq <= 2: 
+                    if (LLI >> 1) % 2 and prn[0] == 'G' and freq <= 2:
                         # wavelength factor opposite of currently set
                         # by RINEX definition, valid for GPS L1, 2 only
                         val.wavefactor = (ambig[prn][freq-1] % 2) + 1
                     elif prn[0] == 'G' and freq <= 2:
                         val.wavefactor = ambig[prn][freq-1]
+                    else:
+                        val.wavefactor = 0
                     val.antispoofing = bool((LLI >> 2) % 2)
                     val.STR = toint(line[s * 16 + 15 : s * 16 + 16])
                     # Signal strength.
                     # 1 is minimum; 5 is good; 9 is maximum.  0 is unknown
                     obsdata[recordnum][prn][obs] = val
+                    numobs[obs] = numobs.get(obs, 0) + 1
             recordnum += 1
     fid.close()
+    obsdata.check(obspersat)
     return obsdata
 
 def procheader(fid, rnxdata, sawrec, recordnum, numlines=None):
@@ -411,6 +406,8 @@ def main():
             op = open(args[0] + '.pkl', 'w')
             dump(parsed_data, op, 2)
             op.close()
+        for data in parsed_data:
+            print data.header_info()
 
 if __name__ == '__main__':
     main()

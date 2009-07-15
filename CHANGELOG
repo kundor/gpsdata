@@ -1,0 +1,11 @@
+Version 0.2, July 14 2009
+    - use standard Python datetime for time data, not a home-grown struct
+      - correctly deal with GPS, GLONASS (UTC), Galileo (TAI) time systems
+      - include gpstime.py with useful time zones, leapseconds data
+      - gpstime.gpsdatetime is a datetime class allowing utc offsets which are
+        not whole minutes
+    - command-line call to rinex.py outputs header info
+    - rinex.get_data() tracks some header stats and adds or verifies them
+
+Version 0.1, July 13 2009
+    - Initial release
