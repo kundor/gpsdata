@@ -1,9 +1,34 @@
-Version 0.2, July 14 2009
+Version 0.3, July 20 2009
+    - don't crash on unknown format input files
+    - output comments in header summary
+    - fix bug in gpsdatetime vs. datetime equality comparison
+    - check or supply leap seconds header info when a leap second occurs during
+      the observations
+    - nicer warning output
+    - fix bug introduced since 0.2 in handling multiple files
+    - Implement Compact RINEX processing in rinex.py, remove crx2rnx
+      (eliminates platform dependency on Linux x86)
+    - rename GPSData.rnx to GPSData.meta in lame attempt to appear less
+      RINEX-dependent
+    - forgive incorrect spacing in RINEX header labels
+    - split out readfile.py, added support for multiple formats
+      (currently only RINEX available)
+    - determine interval of observations (for comparison with header)
+    - GPSData.sats() returns set of satellite PRNs in this data
+    - GPSData.iter() allows iteration over a given satellite, observation code,
+      or both; GPSData.iterepochs() iterates over record epochs
+    - fix gpsdatetime unpickling
+    - friendlier error for nonexistent files
+    - 2-digit years disambiguated correctly in absence of FIRST/LAST OBS
+      (80-99 -> 1980-1999, 00-79 -> 2000-79)
+
+Version 0.2, July 15 2009
     - use standard Python datetime for time data, not a home-grown struct
       - correctly deal with GPS, GLONASS (UTC), Galileo (TAI) time systems
       - include gpstime.py with useful time zones, leapseconds data
       - gpstime.gpsdatetime is a datetime class allowing utc offsets which are
         not whole minutes
+      - 2-digit years disambiguated by TIME OF FIRST/LAST OBS
     - command-line call to rinex.py outputs header info
     - rinex.get_data() tracks some header stats and adds or verifies them
 

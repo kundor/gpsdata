@@ -1,3 +1,4 @@
+# Created by Nick Matteo <kundor@kundor.org> June 9, 2009
 '''
 Defines timezones (tzinfo inheritors) useful for GPS work.
 
@@ -17,10 +18,10 @@ import os
 import re
 from os import path
 from urllib2 import urlopen, URLError
-from datetime import datetime, tzinfo, timedelta
+from datetime import datetime, timedelta, tzinfo as TZInfo
 from warnings import warn
 
-class UTCOffset(tzinfo):
+class UTCOffset(TZInfo):
     '''UTC: Coordinated Universal Time; with optional constant offset'''
 
     def __init__(self, offset=timedelta(0), name=None):
@@ -45,6 +46,8 @@ class UTCOffset(tzinfo):
         return timedelta(0)
     def tzname(self, dt):
         return self.name
+    def __str__(self):
+        return self.name + ' (datetime.tzinfo timezone)'
 
 utctz = UTCOffset()
 
@@ -78,8 +81,11 @@ class LeapSeconds(dict):
 
     @classmethod
     def timetoupdate(cls):
-        '''Determines whether enough time has passed since last update
-        to justify rebuilding the leap seconds data.'''
+        '''
+        Attempts to verify whether January 1 or July 1 has passed since
+        last update; otherwise, don't bother (new leap seconds only occur
+        on those dates.)
+        '''
         now = datetime.utcnow()
         if not os.access(cls.infofile, os.R_OK):
             return True # If file isn't there, try update
@@ -110,9 +116,6 @@ class LeapSeconds(dict):
         '''
         Download and parse new leap second information from reliable
         web sources.
-        Attempts to verify whether January 1 or July 1 has passed since
-        last update; otherwise, doesn't bother (new leap seconds only occur
-        on those dates.)
         '''
         if not cls.timetoupdate():
             print 'No potential leap second has occurred since last update.'
@@ -156,7 +159,7 @@ class LeapSeconds(dict):
 
 leapseconds = LeapSeconds()
 
-class TAIOffset(tzinfo):
+class TAIOffset(UTCOffset):
     '''TAI: International Atomic Time.  utcoffset() is number of leap seconds.'''
     # For GPS we deal with TAI(USNO) and UTC(USNO).
 
@@ -174,12 +177,6 @@ class TAIOffset(tzinfo):
         except ValueError:
             off = 0
         return timedelta(seconds = off) + self.offset
-
-    def dst(self, dt):
-        return timedelta(0)
-    
-    def tzname(self, dt):
-        return self.name
     
     def fromutc(self, dt):
         # Given dt in UTC, return the same time in this timezone
@@ -197,6 +194,10 @@ class gpsdatetime(datetime):
 
     def __new__(cls, year=1980, month=1, day=6, hour=0, minute=0, second=0,
                  microsecond=0, tzinfo=gpstz):
+        if type(year) is str and isinstance(month, TZInfo):
+            return datetime.__new__(cls, year, month)
+        elif type(year) is str:
+            return datetime.__new__(cls, year)
         return datetime.__new__(cls, year, month, day, hour, minute, second,
                          int(microsecond), tzinfo)
 
@@ -254,9 +255,14 @@ class gpsdatetime(datetime):
             return self.copydt(crn, self.tzinfo)
 
     def __eq__(self, other):
-        us = datetime.__sub__(self.replace(tzinfo=None), self.utcoffset())
-        uo = datetime.__sub__(other.replace(tzinfo=None), other.utcoffset())
-        return us == uo
+        if self.utcoffset() is None and other.utcoffset() is None:
+            return datetime.__eq__(self, other)
+        elif self.utcoffset() is None or other.utcoffset() is None:
+            raise TypeError('Cannot compare naive and aware datetimes')
+        else:
+            us = datetime.__sub__(self.replace(tzinfo=None), self.utcoffset())
+            uo = datetime.__sub__(other.replace(tzinfo=None), other.utcoffset())
+            return us == uo
 
     def __ne__(self, other):
         return not self == other
@@ -268,6 +274,8 @@ class gpsdatetime(datetime):
             us = datetime.__sub__(self.replace(tzinfo=None), self.utcoffset())
             uo = datetime.__sub__(other.replace(tzinfo=None), other.utcoffset())
             return us < uo
+        else:
+            raise TypeError("Can't compare naive and aware datetimes")
 
     def __le__(self, other):
         return self < other or self == other
@@ -277,3 +285,6 @@ class gpsdatetime(datetime):
 
     def __gt__(self, other):
         return not self < other and self != other
+
+    def __str__(self):
+        return datetime.__str__(self.replace(tzinfo=None))
