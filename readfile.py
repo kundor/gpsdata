@@ -12,6 +12,7 @@ saved to a pickle file.
 '''
 # TODO:  read novatel logs; read NMEA; read RTCM
 
+import os
 import re
 import sys
 import gzip
@@ -21,6 +22,47 @@ import cPickle as pickle
 from optparse import OptionParser
 from __init__ import __ver__
 import rinex
+
+class fileread(object):
+    '''Wraps "sufficiently file-like objects" (ie those with readline())
+    in an iterable which counts line numbers, strips endlines, and raises
+    StopIteration at EOF.'''
+    def __new__(cls, file):
+        if isinstance(file, fileread):
+            file.reset()
+            return file
+        fr = object.__new__(cls)
+        if isinstance(file, str):
+            fr.fid = open(str)
+        elif isinstance(file, int):
+            fr.fid = os.fdopen(file)
+        elif 'readline' in dir(file):
+            fr.fid = file
+        else:
+            raise ValueError("Input 'file' " + str(type(file)) + "not supported.")
+        fr.reset()
+        return fr
+
+    def next(self):
+        line = self.fid.readline()
+        self.lineno += 1
+        if line == '':
+            raise StopIteration()
+        return line.rstrip('\r\n')
+
+    def __iter__(self):
+        return self
+    
+    def reset(self):
+        if 'seek' in dir(self.fid):
+            try:
+                self.fid.seek(0)
+            except IOError:
+                pass
+        self.lineno = 0
+
+    def close(self):
+        self.fid.close()
 
 def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
     (filename, headers) = urllib.urlretrieve(URL) # does nothing if local file

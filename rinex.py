@@ -19,6 +19,7 @@ import itertools
 from copy import deepcopy
 from string import strip
 from warnings import warn
+from readfile import fileread
 from gpsdata import value, listvalue, GPSData
 from gpstime import gpsdatetime, gpstz, utctz, taitz
 
@@ -289,8 +290,6 @@ class recordLine(object):
     def update(self, fid):
         '''Process a new epoch line.'''
         self.line = self.getline(fid)
-        if self.line == '':
-            raise StopIteration()
         self.oldepoch = self.epoch
         self.epoch = parsetime(self.line[0:26], True, self.baseyear)
         if self.epoch is not None and self.oldepoch is not None:
@@ -299,7 +298,7 @@ class recordLine(object):
         self.flag = toint(self.line[28])
 
     def getline(self, fid):
-        return fid.next().rstrip('\r\n')
+        return fid.next()
 
     def prnlist(self, fid, numobs):
         '''
@@ -313,7 +312,7 @@ class recordLine(object):
         for z in range(self.numrec):
             s = z % 12
             if z and not s:
-                line = fid.next().rstrip('\r\n')
+                line = fid.next()
             prn = btog(line[32 + s * 3]) + '%02d' % toint(line[33 + s * 3 : 35 + s * 3])
             prnlist += [(prn, dl)]
         return prnlist
@@ -332,7 +331,7 @@ class recordArc(recordLine):
         recordLine.__init__(self, baseyear)
 
     def getline(self, fid):
-        line = fid.next().rstrip('\r\n')
+        line = fid.next()
         if line[0] == '&':
             return line.replace('&', ' ')
         else:
@@ -346,7 +345,7 @@ class recordArc(recordLine):
         return prnlist
 
     def offset(self, fid):
-        line = fid.next().rstrip('\r\n')
+        line = fid.next()
         if len(line) >= 2 and line[1] == '&':
             self.offsetArc = dataArc(toint(line[0]))
             self.offsetArc.update(toint(line[2:]))
@@ -407,7 +406,7 @@ class obsLine(object):
     def next(self):
         self.ind = (self.ind + 1) % 5
         if not self.ind:
-            self.line = self.fid.next().rstrip('\r\n')
+            self.line = self.fid.next()
         val = value(tofloat(self.line[self.ind * 16 : self.ind * 16 + 14]))
         LLI = toint(self.line[self.ind * 16 + 14 : self.ind * 16 + 15])
         STR = toint(self.line[self.ind * 16 + 15 : self.ind * 16 + 16])
@@ -446,7 +445,7 @@ class obsArcs(object):
 
 def get_data(fid, is_crx=None):
     ''' Reads data out of a RINEX 2.11 Observation Data File'''
-    fid.seek(0)
+    fid = fileread(fid)
     obsdata = GPSData() 
     obspersat = {}
     rinex = deepcopy(RINEX) # avoid `seen' records polluting other instances
@@ -506,7 +505,7 @@ def get_data(fid, is_crx=None):
 def procheader(fid, RINEX, meta, recordnum, numlines=itertools.repeat(0)):
     for c in numlines:
         try:
-            line = '%-80s' % fid.next().rstrip('\n') # pad spaces to 80
+            line = '%-80s' % fid.next() # pad spaces to 80
         except StopIteration:
             break
         label = line[60:]

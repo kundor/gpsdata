@@ -27,7 +27,7 @@ import sys, warnings
 from warnings import warn
 
 def showwarn(message, category, filename, lineno, file=sys.stderr): 
-    file.write('\n  * '.join(wrap('  * ' + str(message))) + '\n')
+    file.write('\n  * '.join(wrap('*** ' + str(message))) + '\n')
 warnings.showwarning = showwarn
 
 class value(float):
@@ -96,6 +96,17 @@ class record(dict):
             return dict.__contains__(self, 'G%02d' % index)
         return dict.__contains__(self, index)
 
+    def ptec(self, prn):
+        '''Phase (carrier) TEC, if observations are available.'''
+        L1ns = self[prn]['L1']/1.57542 # L1 Frequency (GHz)
+        L2ns = self[prn]['L2']/1.22760 # L2 Frequency (GHz)
+        return (L1ns - L2ns) * 2.852   # Magic number (TECalc_rinex, Pat Doherty)
+
+    def ctec(self, prn):
+        '''Code (pseudorange) TEC, if observations are available.'''
+        if 'P1' in self[prn] and 'P2' in self[prn]:
+            return (self[prn]['P2'] - self[prn]['P1']) * 9.507 # 2.852/.3, tecalc
+        return (self[prn]['C2'] - self[prn]['C1']) * 9.507
 
 class GPSData(list):
     '''
@@ -178,6 +189,25 @@ class GPSData(list):
         if 'obscodes' not in self.meta:
             raise RuntimeError('RINEX file did not define data records')
         return self.meta['obscodes'][which]
+
+    def tec(self, prn, recordnum):
+        '''
+        TEC from carrier phase (L1, L2) is smooth but ambiguous.
+        TEC from code (pseudorange) (C1, C2) or encrypted code (P1, P2)
+        is absolute but noisy.
+        Need to fit phase data to pseudorange data.
+        TEC from pseudorange is calculated as follows:
+        Convert P code(meters) to ns: p1(ns) = p1(m) / .3, p2(ns) = p2(m) / .3
+        Then TEC_TAU = (p2(ns) - p1(ns) - HWCAL(ns)) * 2.852 (TECU) 
+          = (p2(m) - p1(m)) * 9.507
+        HWCAL is the hardware calibration in ns
+        1 TECU = 10*16 el / m**2
+        TEC from phase is calculated as follows:
+        Convert cycles of L1, L2 to ns: L1(ns) = L1(cycles) / 1.57542
+        L2(ns) = L2(cycles) / 1.2276
+        Then TEC_PHASE = (L1(ns) - L2(ns)) * 2.852 (TECU)
+        '''
+        pass
  
     def timesetup(self):
         '''
@@ -333,6 +363,16 @@ class GPSData(list):
         hstr += self.meta['firsttime'].strftime('%B %d, %Y %H:%M:%S')
         hstr += '\nLast record time:\t'
         hstr += self.meta['endtime'].strftime('%B %d, %Y %H:%M:%S')
+        if len(self.meta['leapseconds']) > 1:
+            hstr += '\nLeap seconds:'
+            for recnum, ls in self.meta['leapseconds'].iteritems():
+                if (recnum):
+                    hstr += str(recnum) + ')'
+                hstr += '\n\t' + str(ls) + '\t(records ' + str(recnum) + ' -- '
+            hstr += str(len(self)) + ')'
+        else:
+            hstr += '\nLeap seconds:\t' + str(self.meta['leapseconds'][0])
+        hstr += '\nInterval:\t' + str(self.meta['interval'])
         if 'comment' in self.meta:
             hstr += '\nComments (' + str(len(self.meta['comment'].split('\n'))) + '):\n'
             hstr += '-'*60 + '\n' + self.meta['comment'] + '\n' + '-'*60

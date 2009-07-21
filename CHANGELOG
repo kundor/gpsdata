@@ -1,3 +1,10 @@
+Version 0.3.1, July 21 2009
+    - fix operation for tarfiles (was using nonexistent next()):
+      introduce readfile.fileread class to wrap various file-like objects
+    - record.ptec(prn) returns (uncorrected, instantaneous, slant) phase TEC
+      record.ctec(prn) returns uncorrected instantaneous slant code TEC
+    - Include leap seconds, observation interval in header summary
+
 Version 0.3, July 20 2009
     - don't crash on unknown format input files
     - output comments in header summary
