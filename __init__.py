@@ -1,7 +1,7 @@
 '''
-GPSData Package: Classes and utilities for GPS Observation data
+gpsdata Package: Classes and utilities for GPS Observation data
 
-The main thing provided is the class GPSData.gpsdata.GPSData, which stores
+The main thing provided is the class gpsdata.gpsdata.GPSData, which stores
 pseudoranges, phase, doppler, and SNR for a variety of satellites and
 frequencies, as recorded by some receiver.
 It is planned that this class will also contain ancillary data for these
@@ -14,11 +14,13 @@ as much of this data as is available.
 
 readfile.read_file() constructs a GPSData object from a RINEX observations file.
 
-gpstime contains timezones (tzinfo inheritors) for UTC, TAI, and GPS Time.
+gpstime contains timezones (datetime.tzinfo inheritors) for UTC, TAI, and GPS 
+time.
 
 An IGRF (geomagnetic field model) calculator will be added, as will
 read_nmea() and read_novatel().
+
 '''
 
-__ver__ = '0.3'
+__ver__ = '0.4'
 

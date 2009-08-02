@@ -1,3 +1,30 @@
+Version 0.4, August 1 2009
+    - create plotter.py module with function, plot(), to plot a given
+      observation for all satellites, outputting to given filename
+      (extension determines format) (using matplotlib)
+    - split gpsdata.iter() to gpsdata.iterdict() and gpsdata.iterlist()
+    - eliminate gpsdata.iterepochs() in favor of gpsdata.iter('epoch')
+    - create utility.py module for `useful' classes that didn't belong in
+      gpsdata or readfile:  value, listvalue, fileread so far
+      - This fixes a recursive dependency problem in `import readfile'
+    - Comply PEP 8
+      - Hence renamed package from GPSData to gpsdata
+        - So main class is now gpsdata.gpsdata.GPSData
+    - Count number of header sections in RINEX file
+    - Track "phase connected arcs", ie periods between cycle slips, for
+      each satellite.
+      - New function in gpsdata.GPSData: breakphase, checkphase, sanearcs
+    - RINEX: numrec in event flag 5 observation header indicates header lines
+      following; process them.
+      - since "epoch is significant" for flag 5, mark these header values
+        with the epoch.
+      - while I'm at it, mark all header values with the record number
+      - and line number.
+      - also mark records between flag 2 (start moving) and flag 3 (stop) as
+        "in motion."
+    - Correctly consume any PRN list continuation lines for event flag 6
+      (which we ignore.)
+
 Version 0.3.1, July 21 2009
     - fix operation for tarfiles (was using nonexistent next()):
       introduce readfile.fileread class to wrap various file-like objects

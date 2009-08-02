@@ -20,52 +20,19 @@ import urllib
 import tarfile
 import cPickle as pickle
 from optparse import OptionParser
+
 from __init__ import __ver__
 import rinex
-
-class fileread(object):
-    '''Wraps "sufficiently file-like objects" (ie those with readline())
-    in an iterable which counts line numbers, strips endlines, and raises
-    StopIteration at EOF.'''
-    def __new__(cls, file):
-        if isinstance(file, fileread):
-            file.reset()
-            return file
-        fr = object.__new__(cls)
-        if isinstance(file, str):
-            fr.fid = open(str)
-        elif isinstance(file, int):
-            fr.fid = os.fdopen(file)
-        elif 'readline' in dir(file):
-            fr.fid = file
-        else:
-            raise ValueError("Input 'file' " + str(type(file)) + "not supported.")
-        fr.reset()
-        return fr
-
-    def next(self):
-        line = self.fid.readline()
-        self.lineno += 1
-        if line == '':
-            raise StopIteration()
-        return line.rstrip('\r\n')
-
-    def __iter__(self):
-        return self
-    
-    def reset(self):
-        if 'seek' in dir(self.fid):
-            try:
-                self.fid.seek(0)
-            except IOError:
-                pass
-        self.lineno = 0
-
-    def close(self):
-        self.fid.close()
+import plotter
 
 def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
-    (filename, headers) = urllib.urlretrieve(URL) # does nothing if local file
+    '''Process URL into a GPSData object.
+
+    Deals with local files, http, or ftp; gzipped files; and single-file
+    tar archives.  Then simplistic extension-based format detection is used,
+    unless the argument `format' is supplied.
+    '''
+    (filename, headers) = urllib.urlretrieve(URL)  # does nothing if local file
     if verbose:
         if filename != URL:
             print URL, 'downloaded to', filename, '.'
@@ -85,7 +52,7 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
         else:
             if verbose:
                 print 'Unpacking noncompressed tarfile.'
-            zfile = tarfile.open(filename,'r:') # Force no gunzip
+            zfile = tarfile.open(filename,'r:')  # Force no gunzip
             zfile = zfile.extractfile(zfile.next())
     elif gunzip or gunzip is None and filename.lower().endswith('.gz'):
         if verbose:
@@ -94,44 +61,52 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
         zfile.name = filename.rpartition('.gz')[0] 
     else:
         zfile = open(filename)
-    if format in ('RINEX', 'CRINEX') or format is None and re.search('\.[0-9]{2}[OoDd]$', zfile.name):
+    if format in ('RINEX', 'CRINEX') or (format is None and
+                                    re.search('\.[0-9]{2}[OoDd]$', zfile.name)):
         if verbose:
             print 'Parsing file in RINEX format.'
         return rinex.get_data(zfile, format == 'CRINEX')
     else:
-        print 'Unsupported file format!'
+        print URL + ': Unsupported file format!'
+
 
 def main():
     '''
     Read GPS observation data, downloading, gunzipping, and uncompressing
     as necessary.
     '''
-    
-    parser = OptionParser(description=main.func_doc,
-            usage=sys.argv[0]+' [-hvVpgtGT] [-f FORMAT] <filename> [-o OUTPUT]',
-            epilog='OUTPUT, if given, receives a binary pickle of the RINEX data.')
+    usage = sys.argv[0] + ' [-hvVpgtGT] [-f FORMAT] [-i OBSERVATION]' \
+                          ' <filename> [-o OUTPUT]'
+    epilog = 'OUTPUT, if given, receives a binary pickle of the RINEX data.'
+    parser = OptionParser(description=main.func_doc, usage=usage, epilog=epilog)
     parser.add_option('-v', '--version', action='store_true',
-            help='Show version and quit')
+              help='Show version and quit')
     parser.add_option('-V', '--verbose', action='store_true',
-            help='Verbose operation')
+              help='Verbose operation')
     parser.add_option('-p', '--pickle', action='store_true',
-            help='Save parsed data as a pickle file (extension becomes .pkl')
+              help='Save parsed data as a pickle file (extension becomes .pkl')
+    parser.add_option('-i', '--image', action='store', metavar='OBSERVATION',
+              help='Plot given OBSERVATION for all satellites;'
+                   ' display unless -o given')
     parser.add_option('-g', '--gunzip', action='store_true',
-            help='Force treatment as gzipped')
+              help='Force treatment as gzipped')
     parser.add_option('-G', '--no-gunzip', action='store_false', dest='gunzip',
-            help='Do not gunzip')
+              help='Do not gunzip')
     parser.add_option('-t', '--tar', action='store_true',
-            help='Force treatment as tar file')
+              help='Force treatment as tar file')
     parser.add_option('-T', '--notar', action='store_false', dest='tar',
-            help='Do not untar')
-    parser.add_option('-f', '--format', action='store', choices=['RINEX', 'CRINEX'],
-            help='Format of GPS observation file (default: by extension)')
-    parser.add_option('-o', '--output', action='store',
-            help='File to save pickle data in (overrides -p)')
+              help='Do not untar')
+    parser.add_option('-f', '--format', action='store', 
+              choices=['RINEX', 'CRINEX'],
+              help='Format of GPS observation file (default: by extension)')
+    parser.add_option('-o', '--output', action='append',
+              help='File to save data in (must specify -i or -p)')
     (opts, args) = parser.parse_args()
     if opts.version:
-        print 'GPSData version', __ver__, 'supporting RINEX version',\
-                RNX_VER, 'and Compact RINEX version', CR_VER, '.'
+        print 'GPSData version', __ver__, 'supporting RINEX version', \
+              RNX_VER, 'and Compact RINEX version', CR_VER, '.'
+    elif opts.image and opts.pickle:
+        parser.error('Cannot output both a pickle and an image - sorry.')
     elif not args:
         parser.error('Filename or URL required.')
     else:
@@ -141,18 +116,25 @@ def main():
         except IOError, ioe:
             print ioe
             sys.exit(ioe.errno)
-        if opts.output is not None:
-            op = open(opts.output, 'wb')
+        if opts.output and opts.pickle:
+            op = open(opts.output[0], 'wb')
             pickle.dump(parsed_data, op, pickle.HIGHEST_PROTOCOL)
             op.close()
+        elif opts.output and opts.image:
+            for data, out in zip(parsed_data, opts.output):
+                # If there are more input files than output names, or vice
+                # versa, we write out the lesser number (ignoring the rest)
+                plotter.plot(data, opts.image, out)
         elif opts.pickle:
             op = open(args[0] + '.pkl', 'wb')
             pickle.dump(parsed_data, op, pickle.HIGHEST_PROTOCOL)
             op.close()
+        elif opts.image:
+            plotter.plot(data, opts.image)
         for data in parsed_data:
             if data is not None:
                 print data.header_info()
 
+
 if __name__ == '__main__':
     main()
-

@@ -13,6 +13,14 @@ LeapSeconds.update() is a class method to update the leap seconds information.
 
 NB: Standard Python datetime objects are only precise to 1 microsecond.
 '''
+# These classes do NOT account for:
+#  - Difference in GPS time vs. UTC(USNO) (Currently sync'd once per day.)
+#  - Difference in UTC(USNO) vs. UTC (sync'd about once a month.)
+#  - Difference in UTC vs. GLONASS
+#  - Difference in TAI vs. Galileo
+# I don't know about UTC vs. GLONASS, but the other errors remain on the order
+# of a few nanoseconds.  The sum of all such errors should remain well below a
+# microsecond (the limit of Python's datetime precision.)
 
 import os
 import re
@@ -21,6 +29,9 @@ from urllib2 import urlopen, URLError
 from datetime import datetime, timedelta, tzinfo as TZInfo
 from warnings import warn
 
+URL1 = 'http://maiiia.usno.navy.mil/ser7/tai-utc.dat'
+URL2 = 'http://hpiers.obspm.fr/iers/bul/bulc/UTC-TAI.history'
+
 class UTCOffset(TZInfo):
     '''UTC: Coordinated Universal Time; with optional constant offset'''
 
@@ -28,9 +39,9 @@ class UTCOffset(TZInfo):
         self.offset = offset
         if name is None:
             end = 1
-            if offset.seconds % 60: # not an even minute
+            if offset.seconds % 60:  # not an even minute
                 end = 3
-            elif offset.seconds % 3600: # not an even hour
+            elif offset.seconds % 3600:  # not an even hour
                 end = 2
             if offset > timedelta(0):
                 name = 'UTC + ' + str(offset).split(':')[0:end].join(':')
@@ -51,6 +62,7 @@ class UTCOffset(TZInfo):
 
 utctz = UTCOffset()
 
+
 class LeapSeconds(dict):
     '''
     Uses data file (leapseco.dat, in same directory as the code)
@@ -63,6 +75,7 @@ class LeapSeconds(dict):
     infofile = path.join(path.dirname(path.abspath(__file__)), 'leapseco.dat')
 
     def __init__(self):
+        '''Load and parse leap seconds data file.'''
         dict.__init__(self)
         try:
             lfile = open(self.infofile)
@@ -88,11 +101,11 @@ class LeapSeconds(dict):
         '''
         now = datetime.utcnow()
         if not os.access(cls.infofile, os.R_OK):
-            return True # If file isn't there, try update
+            return True  # If file isn't there, try update
         try:
             fid = open(cls.infofile)
         except IOError:
-            return True # ditto
+            return True  # ditto
         try:
             updtime = datetime.strptime(fid.next(), 'Updated: %Y/%m/%d\n')
         except ValueError:
@@ -123,10 +136,10 @@ class LeapSeconds(dict):
         if not os.access(path.dirname(cls.infofile), os.W_OK):
             raise(IOError, 'Leap second data file cannot be written.')
         try:
-            ul = urlopen('http://maiiia.usno.navy.mil/ser7/tai-utc.dat')
+            upd = urlopen(URL1)
             type = 1
         except URLError:
-            ul = urlopen('http://hpiers.obspm.fr/iers/bul/bulc/UTC-TAI.history')
+            upd = urlopen(URL2)
             type = 2
         mons = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG',
                 'SEP', 'OCT', 'NOV', 'DEC']
@@ -134,23 +147,24 @@ class LeapSeconds(dict):
         lfile = open(newfile, 'w')
         lfile.write('Updated: ' + datetime.utcnow().strftime('%Y/%m/%d\n'))
         year = 1961
-        for line in ul:
+        for line in upd:
             if type == 1:
                 year = int(line[0:5])
                 month = mons.index(line[6:9].upper())
                 day = int(line[10:13])
-                adjust = str(float(line[36:48]))
+                adjust = float(line[36:48])
             elif type == 2:
-                if len(line) < 36 or re.match(' ?-* ?$| RELATIONSHIP| Limits', line):
+                if len(line) < 36 or re.match(' ?-* ?$| RELATIONSHIP| Limits',
+                                              line):
                     continue
                 if line[0:6].strip() != '':
                     year = int(line[0:6])
                 month = mons.index(line[7:10].upper())
                 day = int(line[12:15].rstrip('. '))
-                adjust = str(float(line[31:47].replace(' ', '').rstrip('s\t\n')))
+                adjust = float(line[31:47].replace(' ', '').rstrip('s\t\n'))
             lfile.write(datetime(year, month, day).strftime('%Y/%m/%d-%H:%M:%S')
-                    + ' : ' + adjust + '\n')
-        ul.close()
+                                                  + ' : ' + str(adjust) + '\n')
+        upd.close()
         lfile.close()
         if path.exists(cls.infofile):
             os.remove(cls.infofile)
@@ -159,8 +173,11 @@ class LeapSeconds(dict):
 
 leapseconds = LeapSeconds()
 
+
 class TAIOffset(UTCOffset):
-    '''TAI: International Atomic Time.  utcoffset() is number of leap seconds.'''
+    '''
+    TAI: International Atomic Time.  utcoffset() is number of leap seconds.
+    '''
     # For GPS we deal with TAI(USNO) and UTC(USNO).
 
     def __init__(self, offset=timedelta(0), name='TAI'):
@@ -168,7 +185,8 @@ class TAIOffset(UTCOffset):
         self.name = name
     
     def utcoffset(self, dt):
-        if dt.tzinfo is self or dt.utcoffset() is not None: # not naive datetime
+        if dt.tzinfo is self or dt.utcoffset() is not None:
+            # dt is not a naive datetime
             dt = dt.replace(tzinfo=None)
         if dt < datetime(1958, 1, 1):
             raise(ValueError, 'TAI vs UTC is unclear before 1958; unsupported.')
@@ -179,11 +197,12 @@ class TAIOffset(UTCOffset):
         return timedelta(seconds = off) + self.offset
     
     def fromutc(self, dt):
-        # Given dt in UTC, return the same time in this timezone
+        '''Given `dt' in UTC, return the same time in this timezone.'''
         return dt + self.utcoffset(dt.replace(tzinfo=utctz))
 
 taitz = TAIOffset()
 gpstz = TAIOffset(timedelta(seconds=-19), 'GPS')
+
 
 class gpsdatetime(datetime):
     '''
@@ -191,9 +210,8 @@ class gpsdatetime(datetime):
     the offset from UTC to not be in whole minutes.
     It also sets tzinfo to gpstz by default, instead of None.
     '''
-
     def __new__(cls, year=1980, month=1, day=6, hour=0, minute=0, second=0,
-                 microsecond=0, tzinfo=gpstz):
+                microsecond=0, tzinfo=gpstz):
         if type(year) is str and isinstance(month, TZInfo):
             return datetime.__new__(cls, year, month)
         elif type(year) is str:
@@ -204,7 +222,8 @@ class gpsdatetime(datetime):
     @classmethod
     def copydt(cls, other, tzinfo=None):
         '''Copy a standard datetime object into a gpsdatetime,
-        optionally replacing tzinfo.'''
+        optionally replacing tzinfo.
+        '''
         if tzinfo is None:
             tzinfo = other.tzinfo
         return cls.__new__(cls, other.year, other.month, other.day, other.hour,
@@ -221,9 +240,9 @@ class gpsdatetime(datetime):
         if off is None:
             return off
         elif not isinstance(off, timedelta):
-            raise ValueError('tzinfo.utcoffset() must return a timedelta')
+            raise ValueError('tzinfo.utcoffset() must return a timedelta.')
         elif abs(off) >= timedelta(days=1):
-            raise ValueError('tzinfo.utcoffset() must be less than one day')
+            raise ValueError('tzinfo.utcoffset() must be less than one day.')
         return off
 
     def astimezone(self, tz):
@@ -240,16 +259,19 @@ class gpsdatetime(datetime):
 
     def __sub__(self, other):
         '''Subtract other gpsdatetime or datetime to produce timedelta,
-        or subtract timedelta to produce gpsdatetime.'''
+        or subtract timedelta to produce gpsdatetime.
+        '''
         if isinstance(other, datetime):
             if self.utcoffset() is None and other.utcoffset() is None:
                 return datetime.__sub__(self, other)
             elif self.utcoffset() is not None and other.utcoffset() is not None:
-                off = datetime.__sub__(self.replace(tzinfo=None), other.replace(tzinfo=None))
+                off = datetime.__sub__(self.replace(tzinfo=None),
+                                       other.replace(tzinfo=None))
                 off += other.utcoffset() - self.utcoffset()
                 return off
             else: 
-                raise TypeError('Cannot subtract naive datetime from aware datetime')
+                raise TypeError('Cannot subtract naive datetime from '
+                                'aware datetime')
         else:
             crn = datetime.__sub__(self.replace(tzinfo=None), other)
             return self.copydt(crn, self.tzinfo)

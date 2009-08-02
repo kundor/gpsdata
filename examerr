@@ -1,4 +1,0 @@
-  * Leap seconds in header (11) do not match system leap seconds
-  * (0:00:13).  Header appears incorrect!
-  * TIME OF LAST OBS 2000-01-13 15:00:00 does not match last record
-  * epoch 2000-01-13 14:45:02
