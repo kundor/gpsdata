@@ -1,3 +1,11 @@
+Versioni 0.4.1, August 2 2009
+    - read marker name -> location title information from stations.dat
+      (also contains station coordinates, potentially useful elsewhere)
+    - Command line: When specifying --image without --output,
+      - called plot() with nonexistant variable
+      - used fig.show() for display, which is not in all matplotlib backends
+        (replaced by matplotlib.pyplot.show())
+
 Version 0.4, August 1 2009
     - create plotter.py module with function, plot(), to plot a given
       observation for all satellites, outputting to given filename

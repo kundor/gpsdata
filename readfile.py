@@ -130,7 +130,8 @@ def main():
             pickle.dump(parsed_data, op, pickle.HIGHEST_PROTOCOL)
             op.close()
         elif opts.image:
-            plotter.plot(data, opts.image)
+            for data in parsed_data:
+                plotter.plot(data, opts.image)
         for data in parsed_data:
             if data is not None:
                 print data.header_info()
