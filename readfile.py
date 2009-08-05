@@ -16,6 +16,7 @@ import os
 import re
 import sys
 import gzip
+import time
 import urllib
 import tarfile
 import cPickle as pickle
@@ -58,7 +59,7 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
         if verbose:
             print 'Gunzipping file.'
         zfile = gzip.open(filename)
-        zfile.name = filename.rpartition('.gz')[0] 
+        zfile.name = filename[:filename.rfind('.gz')]
     else:
         zfile = open(filename)
     if format in ('RINEX', 'CRINEX') or (format is None and
@@ -70,6 +71,32 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
         print URL + ': Unsupported file format!'
 
 
+def index(req, n_file, n_type):
+    '''Read GPS observation data and show summary or TEC plot.
+    
+    This function is called for mod_python in a web server (apache).
+    '''
+    database = '/web/gps/data/'
+    filedate = time.strptime(n_file[5:11], '%y%m%d')
+    url = os.path.join(database, n_file[0:4], `filedate.tm_year`, n_file[7:9],
+                                                               'rinex', n_file)
+    # Parse RINEX file
+    dat = read_file(url)
+    if n_type.lower() == 'summary':
+        # Return summary info
+        req.content_type = "text/plain"
+        req.write(dat.header_info())
+    elif n_type.lower() == 'tec':
+        # Return TEC plot
+        fig = plotter.plot(dat, 'TEC', 'web')
+        f = os.tmpfile()
+        fig.savefig(f)
+        f.seek(0)
+        req.content_type = "image/png"
+        req.write(f.read())
+        f.close()
+
+
 def main():
     '''
     Read GPS observation data, downloading, gunzipping, and uncompressing
@@ -77,8 +104,7 @@ def main():
     '''
     usage = sys.argv[0] + ' [-hvVpgtGT] [-f FORMAT] [-i OBSERVATION]' \
                           ' <filename> [-o OUTPUT]'
-    epilog = 'OUTPUT, if given, receives a binary pickle of the RINEX data.'
-    parser = OptionParser(description=main.func_doc, usage=usage, epilog=epilog)
+    parser = OptionParser(description=main.func_doc, usage=usage)
     parser.add_option('-v', '--version', action='store_true',
               help='Show version and quit')
     parser.add_option('-V', '--verbose', action='store_true',

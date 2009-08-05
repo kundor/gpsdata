@@ -26,12 +26,28 @@ from gpsdata import GPSData
 
 RNX_VER = '2.11'
 
-btog = lambda c : 'G' if c in (None, '', ' ') else c.upper()
 truth = lambda x : 1
-toint = lambda x : 0 if x is None or x.strip() == '' else int(x)
-choose = lambda a, b: a if a is not None and b in (' ', None) \
-                      else b.replace('&', ' ')
-tofloat = lambda x : 0. if x is None or x.strip() == '' else float(x)
+
+def btog(c):
+    if c in (None, '', ' '):
+        return 'G'
+    return c.upper()
+
+def toint(x):
+    if x is None or x.strip() == '':
+        return 0
+    return int(x)
+
+def choose(a, b):
+    if a is not None and b in (' ', None):
+        return a
+    return b.replace('&', ' ')
+
+def tofloat(x):
+    if x is None or x.strip() == '':
+        return 0.
+    return float(x)
+
 to3float = lambda s : tuple(tofloat(s[k*14:(k+1)*14]) for k in (0,1,2))
 
 
@@ -72,13 +88,19 @@ def parsetime(s, tight=False, baseyear=None):
     '''
     if not s.strip():
         return None
-    width = 3 if tight else 6
-    secwidth = 11 if tight else 13
+    if tight:
+        width = 3
+        secwidth = 11
+    else:
+        width = 6
+        secwidth = 13
     year = toint(s[0 : width])
     if tight and baseyear is not None:
         year += (int(baseyear)/100)*100
+    elif tight and year < 80:
+        year += 2000
     elif tight:
-        year += 2000 if year < 80 else 1900
+        year += 1900
     month = toint(s[width : width * 2])
     day = toint(s[width * 2 : width * 3])
     hour = toint(s[width * 3 : width * 4])
@@ -214,6 +236,14 @@ class header(object):
         
         def read(self, line):
             return value(self.convert(line[self.start:self.stop]))
+
+        def __deepcopy__(self, memo={}):
+            '''Fix deepcopying in Python 2.4.'''
+            newfield = self.__class__(deepcopy(self.name, memo), 
+                              deepcopy(self.start, memo),
+                              deepcopy(self.stop, memo), self.convert)
+            memo[id(self)] = newfield
+            return newfield
 
     def __init__(self, field_args, multi_act=0):
         self.mems = [header.field(*fargs) for fargs in field_args]
@@ -522,10 +552,12 @@ class obsArcs(object):
 
 def get_data(fid, is_crx=None):
     '''Read data out of a RINEX 2.11 Observation Data File.'''
-    fid = fileread(fid)
     obsdata = GPSData() 
     obspersat = {}
     rinex = deepcopy(RINEX)  # avoid `seen' records polluting other instances
+    if hasattr(fid, 'name'):
+        obsdata.meta['filename'] = fid.name
+    fid = fileread(fid)
     procheader(fid, rinex, obsdata.meta, 0)
     baseyear = obsdata.timesetup()
     if is_crx or 'is_crx' in obsdata.meta:
@@ -596,7 +628,7 @@ def get_data(fid, is_crx=None):
 
 def procheader(fid, RINEX, meta, recordnum, numlines=itertools.repeat(0),
                epoch=None):
-    if numlines:
+    if isinstance(numlines, itertools.repeat) or numlines:
         meta.numblocks += 1
     for c in numlines:
         try:

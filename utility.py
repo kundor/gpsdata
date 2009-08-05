@@ -87,8 +87,8 @@ class fileread(object):
         elif hasattr(file, 'readline'):
             fr.fid = file
         else:
-            raise ValueError("Input of type " + str(type(file)) +
-                             "not supported.")
+            raise ValueError("Input of type " + `type(file)` +
+                                                          " is not supported.")
         fr.reset()
         return fr
 

@@ -27,6 +27,7 @@ import re
 from os import path
 from urllib2 import urlopen, URLError
 from datetime import datetime, timedelta, tzinfo as TZInfo
+from time import strptime
 from warnings import warn
 
 URL1 = 'http://maiiia.usno.navy.mil/ser7/tai-utc.dat'
@@ -88,7 +89,8 @@ class LeapSeconds(dict):
         for line in lfile:
             match = re.match('^([0-9:/-]+) : ([0-9.-]+)$', line)
             if match:
-                dt = datetime.strptime(match.group(1), '%Y/%m/%d-%H:%M:%S')
+                dt = datetime(*(strptime(match.group(1), 
+                                                    '%Y/%m/%d-%H:%M:%S')[0:6]))
                 self[dt] = float(match.group(2))
         lfile.close()
 
@@ -107,12 +109,12 @@ class LeapSeconds(dict):
         except IOError:
             return True  # ditto
         try:
-            updtime = datetime.strptime(fid.next(), 'Updated: %Y/%m/%d\n')
+            updtime = datetime(*(strptime(fid.next(),
+                                                  'Updated: %Y/%m/%d\n')[0:6]))
         except ValueError:
             warn('Leap second data file in invalid format.')
             return True
-        finally:
-            fid.close()
+        fid.close()
         if updtime > now:
             warn(ValueError, 'Leap second data file is from the future.')
             return False

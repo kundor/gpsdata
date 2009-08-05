@@ -1,4 +1,24 @@
-Versioni 0.4.1, August 2 2009
+Version 0.4.2, August 5 2009
+    - Was misreading years with all four digits
+    - Wow, backticks are better than str()!
+    - changes to operate with mod_python (Juan Carlos Espinoza):
+      - added readfile.index() function
+      - special behaviour in plotter.plot if fname == 'web'
+    - Python 2.4 compatibility:
+      - remove str.rpartition() in readfile
+      - remove try-except-finally in gpstime
+      - remove conditionals (x if foo else y)
+      - replace datetime.strptime with time.strptime in gpstime
+      - remove epilog from readfile OptionParser (wasn't up to date anyway)
+      - add rinex.header.field.__deepcopy__ (barfed on function references)
+    - remove plotter.MarkerNames class, just leave in the module
+      (I am too class-crazy)
+    - add plotter.colorplot() to plot lines with significantly colored dots
+    - make system-determined leap seconds ints, not timedeltas (so that
+      comparison with header-derived leap seconds is not bogus)
+    - record filename in metadata, report in header summary
+
+Version 0.4.1, August 2 2009
     - read marker name -> location title information from stations.dat
       (also contains station coordinates, potentially useful elsewhere)
     - Command line: When specifying --image without --output,

@@ -23,9 +23,9 @@ and so forth.
 import sys
 import warnings
 from datetime import datetime, timedelta
-from numpy import sum
 from textwrap import wrap
 from warnings import warn
+from numpy import sum
 
 from utility import listvalue, metadict
 from gpstime import leapseconds, gpsdatetime, gpstz, utctz, taitz
@@ -353,18 +353,27 @@ class GPSData(list):
         if obscode is None:
             obscode = list(self.allobs)
 
+        def chooser(obs, rec, sat, spec=None):
+            if sat in rec and obs in rec[sat]:
+                return rec[sat][obs]
+            if spec and obs == spec:
+                return rec[obs]
+            return None
+
+        def hichoose(sat, rec, obscode):
+            if sat in rec:
+                return [chooser(obs, rec, sat) for obs in obscode]
+            return None
+
         for record in self:
             if isinstance(obscode, list) and isinstance(sat, list):
-                yield [[record[s][obs] if obs in record[s] else None for obs in 
-                        obscode] if s in record else None for s in sat]
+                yield [hichoose(s, record, obscode) for s in sat]
             elif isinstance(obscode, list) and sat in record:
-                yield [record[sat][obs] if obs in record[sat] else record[obs]
-                                if obs == 'epoch' else None for obs in obscode]
+                yield [chooser(obs, record, sat, 'epoch') for obs in obscode]
             elif obscode == 'epoch':
                 yield record['epoch']
             elif isinstance(sat, list):
-                yield [record[s][obscode] if s in record and obscode in 
-                                              record[s] else None for s in sat]
+                yield [chooser(obscode, record, s) for s in sat]
             elif sat in record and obscode in record[sat]:
                 yield record[sat][obscode]
 
@@ -392,6 +401,12 @@ class GPSData(list):
                 obscode = obscode[0]
             elif isinstance(obscode, (tuple, set, dict)):
                 obscode = [o for o in obscode]
+        
+        def epochchoose(rec, sat, obs, spec='epoch'):
+            if obs != spec:
+                return rec[sat][obs]
+            return rec[obs]
+
         for record in self:
             if obscode is None and sat is None:
                yield record 
@@ -406,9 +421,8 @@ class GPSData(list):
                 yield dict([(s, dict([(obs, record[s][obs]) for obs in obscode 
                       if obs in record[s]])) for s in sat if s in record])
             elif isinstance(obscode, list) and sat in record:
-                yield dict([(obs, record[sat][obs] if obs != 'epoch' else 
-                    record[obs]) for obs in obscode if obs == 'epoch' or 
-                    obs in record[sat]])
+                yield dict([(obs, epochchoose(record, sat, obs)) for obs in
+                              obscode if obs == 'epoch' or obs in record[sat]])
             elif obscode == 'epoch':
                 yield record['epoch']
             elif sat is None:
@@ -545,9 +559,9 @@ class GPSData(list):
             self.meta['endtime'] = self[-1].epoch
         if 'leapseconds' in self.meta:
             for recnum, ls in self.meta.leapseconds.items():
-                if ls != gpstz.utcoffset(self[recnum].epoch):
-                    wstr = 'Leap seconds in header (' + str(ls)
-                    wstr += ') do not match system leap seconds ('
+                if ls != gpstz.utcoffset(self[recnum].epoch).seconds:
+                    wstr = 'Leap seconds in header (' + `ls` + ') '
+                    wstr += 'do not match system leap seconds ('
                     wstr += str(gpstz.utcoffset(self[recnum].epoch)) + ').'
                     if leapseconds.timetoupdate():
                         wstr += '  Try gpstime.LeapSeconds.update().'
@@ -556,7 +570,7 @@ class GPSData(list):
                     warn(wstr)
         else:
             self.meta['leapseconds'] = listvalue()
-            self.meta['leapseconds'][0] = gpstz.utcoffset(self[0].epoch)
+            self.meta['leapseconds'][0] = gpstz.utcoffset(self[0].epoch).seconds
             if self.tzinfo is not None:
                 t0 = self[0].epoch.astimezone(utctz).replace(tzinfo=None)
                 t1 = self[-1].epoch.astimezone(utctz).replace(tzinfo=None)
@@ -566,20 +580,20 @@ class GPSData(list):
             for leap in leapseconds:
                 if t0 < leap < t1:
                     ind = max([k for k in xrange(len(self)) 
-                                 if self[k].epoch <= leap])
-                    self.meta['leapseconds'][ind] = gpstz.utcoffset(leap)
+                                                     if self[k].epoch <= leap])
+                    self.meta['leapseconds'][ind] = \
+                                                  gpstz.utcoffset(leap).seconds
         if 'interval' in self.meta:
             if self.meta.interval != min(intervals):
-                warn('INTERVAL ' + str(self.meta.interval) +
-                     ' does not match minimum observation interval ' +
-                     str(min(intervals)))
+                warn('INTERVAL ' + str(self.meta.interval) + ' does not match '
+                     'minimum observation interval ' + str(min(intervals)))
         else:
             self.meta['interval'] = min(intervals)
         if 'numsatellites' in self.meta:
             if self.meta.numsatellites != len(obspersat):
-                warn('# OF SATELLITES header ' + str(self.meta.numsatellites) +
+                warn('# OF SATELLITES header ' + `self.meta.numsatellites` +
                      ' does not matched observed number of satellites ' +
-                     str(len(obspersat)) + '.')
+                     `len(obspersat)` + '.')
         else:
             self.meta['numsatellites'] = len(obspersat)
         if 'obsnumpersatellite' in self.meta:
@@ -596,9 +610,9 @@ class GPSData(list):
                 rns = self.meta.obsnumpersatellite[prn]
                 for (c, obs) in enumerate(self.obscodes(0)):
                     if ops[obs] != rns[c]:
-                        warn(' '.join(('Header claimed', str(rns[c]), obs,
+                        warn(' '.join(('Header claimed', `rns[c]`, obs,
                                        'observations for prn', prn, 'but only', 
-                                       str(ops[obs]), 'observed.')))
+                                       `ops[obs]`, 'observed.')))
         else:
             self.meta['obsnumpersatellite'] = {}
             for prn in obspersat:
@@ -614,7 +628,11 @@ class GPSData(list):
         Returns a string with some summarizing information from the
         observation data file headers.
         '''
-        hstr = 'Satellite system:\t'
+        if 'filename' in self.meta:
+            hstr = 'File:\t\t\t' + self.meta.filename + '\n'
+        else:
+            hstr = ''
+        hstr += 'Satellite system:\t'
         if self.satsystem == 'G':
             hstr += 'GPS'
         elif self.satsystem == 'E':
@@ -634,17 +652,17 @@ class GPSData(list):
             hstr += '\nLeap seconds:'
             for recnum, ls in self.meta.leapseconds.items():
                 if (recnum):
-                    hstr += str(recnum) + ')'
-                hstr += '\n\t' + str(ls) + '\t(records ' + str(recnum) + ' -- '
-            hstr += str(len(self)) + ')'
+                    hstr += `recnum` + ')'
+                hstr += '\n\t' + str(ls) + '\t(records ' + `recnum` + ' -- '
+            hstr += `len(self)` + ')'
         else:
             hstr += '\nLeap seconds:\t' + str(self.meta.leapseconds[0])
         hstr += '\nInterval:\t' + str(self.meta.interval) + '\n'
         if 'comment' in self.meta:
-            hstr += 'Comments (' + str(len(self.meta.comment)) + '):\n'
+            hstr += 'Comments (' + `len(self.meta.comment)` + '):\n'
             hstr += '-' * 60 + '\n' + '\n'.join(self.meta.comment) + '\n' + \
                     '-' * 60 + '\n'
-        hstr += str(self.meta.numsatellites) + ' satellites observed. '
+        hstr += `self.meta.numsatellites` + ' satellites observed. '
         hstr += 'Number of observations:\n'
         hstr += 'PRN\t' + '\t'.join(['%5s' % s for s in self.obscodes(0)])
         for (prn, counts) in self.meta.obsnumpersatellite.items():
