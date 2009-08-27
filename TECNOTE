@@ -1,0 +1,32 @@
+The technique used by the receiver to measure the DPR dictates
+the type of satellite timing biases that must be removed.
+
+Receiver            DPR                 Satellite Bias
+Ashtech Z-12        L2(P2) - L1(P1)     P1P2 bias
+Ashtech μZ-CGRS     L2(P2) - L1(P1)     P1P2 bias
+NovAtel GSV 4004B   L2(P2) - L1(CA)     P1P2 bias minus the P1C1 bias
+
+Files containing monthly estimates for the P1P2 and P1C1 biases can be
+downloaded from http://www.aiub.unibe.ch/download/CODE/.
+
+Calculate S4, ROTI, exclude data with S4 > 0.3 and ROTI > 10 TECU/min
+from difference average
+S4 = sqrt(<I^2> - <I>^2) / <I>, signal intensity std. dev / mean signal intensity
+
+ROTI = rate of TEC change; TEC derivative?
+
+curve coloring is by geomagnetic latitude?  (of the sat?)
+to show "meridional gradients"
+
+
+produce nightly receiver bias estimates by assuming from 3-5 am
+vertical calibrated TEC from each satellite should be the same
+choose rcvr bias which minimizes variance in this set
+
+vertical cal TEC = [slant uncal TEC - (receiver bias + satellite bias)] / M(e, h)
+where M(e,h) is the single layer mapping function
+
+Keep 14 day average of estimated receiver bias to produce final calibrated
+slant and vertical TEC; if TEC ever becomes negative, modify receiver bias
+so that min TEC is 0.
+

@@ -632,7 +632,7 @@ def procheader(fid, RINEX, meta, recordnum, numlines=itertools.repeat(0),
         meta.numblocks += 1
     for c in numlines:
         try:
-            line = '%-80s' % fid.next()  # pad spaces to 80
+            line = fid.next().ljust(80)  # pad spaces to 80
         except StopIteration:
             break
         label = line[60:]

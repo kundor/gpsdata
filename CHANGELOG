@@ -1,5 +1,15 @@
+Version 0.4.3, August 27 2009
+    - Use ''.ljust() to pad to 80 spaces instead of formatting operation
+    - Disable command-line option "-p" for pickling, since it's broken.
+    - Added unused `line' argument to gpsdata.showwarn() to avoid Python 2.6
+      warning
+    - Added README
+    - If matplotlib is not available, disable the "-i" plotting option in
+      readfile.py command-line usage, rather than crashing (which also 
+      prevented in-Python usage of read_file())
+
 Version 0.4.2, August 5 2009
-    - Was misreading years with all four digits
+    - Was misreading years with all four digits present
     - Wow, backticks are better than str()!
     - changes to operate with mod_python (Juan Carlos Espinoza):
       - added readfile.index() function
@@ -10,10 +20,10 @@ Version 0.4.2, August 5 2009
       - remove conditionals (x if foo else y)
       - replace datetime.strptime with time.strptime in gpstime
       - remove epilog from readfile OptionParser (wasn't up to date anyway)
-      - add rinex.header.field.__deepcopy__ (barfed on function references)
+      - add rinex.header.field.__deepcopy__ (2.4 barfed on function references)
     - remove plotter.MarkerNames class, just leave in the module
       (I am too class-crazy)
-    - add plotter.colorplot() to plot lines with significantly colored dots
+    - add plotter.colorplot() to plot lines with meaningfully colored dots
     - make system-determined leap seconds ints, not timedeltas (so that
       comparison with header-derived leap seconds is not bogus)
     - record filename in metadata, report in header summary

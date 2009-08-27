@@ -24,7 +24,10 @@ from optparse import OptionParser
 
 from __init__ import __ver__
 import rinex
-import plotter
+try:
+    import plotter
+except ImportError:
+    pass
 
 def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
     '''Process URL into a GPSData object.
@@ -98,22 +101,27 @@ def index(req, n_file, n_type):
 
 
 def main():
-    '''
-    Read GPS observation data, downloading, gunzipping, and uncompressing
+    '''Read GPS observation data, downloading, gunzipping, and uncompressing
     as necessary.
     '''
-    usage = sys.argv[0] + ' [-hvVpgtGT] [-f FORMAT] [-i OBSERVATION]' \
-                          ' <filename> [-o OUTPUT]'
+    usage = sys.argv[0] + ' [-hvVgtGT] [-f FORMAT]'
+    if 'plotter' in dir():
+        usage = usage + ' [-i OBSERVATION]'
+    usage = usage + ' <filename> [-o OUTPUT]'
     parser = OptionParser(description=main.func_doc, usage=usage)
     parser.add_option('-v', '--version', action='store_true',
               help='Show version and quit')
     parser.add_option('-V', '--verbose', action='store_true',
               help='Verbose operation')
-    parser.add_option('-p', '--pickle', action='store_true',
-              help='Save parsed data as a pickle file (extension becomes .pkl')
-    parser.add_option('-i', '--image', action='store', metavar='OBSERVATION',
-              help='Plot given OBSERVATION for all satellites;'
-                   ' display unless -o given')
+#   parser.add_option('-p', '--pickle', action='store_true',
+#             help='Save parsed data as a pickle file (extension becomes .pkl')
+    parser.set_defaults(pickle=None) # TODO: fix pickling
+    if 'plotter' in dir():
+        parser.add_option('-i', '--image', action='store', 
+                          metavar='OBSERVATION', help='Plot given OBSERVATION'
+                              ' for all  satellites;  display unless -o given')
+    else:
+        parser.set_defaults(image=None)
     parser.add_option('-g', '--gunzip', action='store_true',
               help='Force treatment as gzipped')
     parser.add_option('-G', '--no-gunzip', action='store_false', dest='gunzip',

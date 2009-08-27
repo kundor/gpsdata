@@ -37,6 +37,7 @@ def colorplot(ax, X, Y, C, label=None, numlabs=4):
     if isinstance(C[0], (float, int, long)):
         nm = Normalize(min(C), max(C))
         C = cmap(nm(C))
+    # TODO : keep nm for all instances, so all lines are colored equivalently
     for x, y, c, n in zip(X, Y, C, count()):
         ax.plot([x], [y], linestyle='', marker='.', ms=1., mfc=c)
         if label is not None and not n % (len(X)/4):

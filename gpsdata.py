@@ -39,7 +39,7 @@ MINGOOD = 16  # Minimum number of usable records we need to use an arc
 
 numgd = [0]  # Stupid Python tricks (can't modify globals)
 
-def showwarn(message, category, filename, lineno, file=sys.stderr): 
+def showwarn(message, category, filename, lineno, file=sys.stderr, line=None): 
     # Output pretty warnings.
     file.write('\n  * '.join(wrap('*** ' + str(message))) + '\n')
 
