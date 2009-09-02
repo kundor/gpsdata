@@ -22,5 +22,5 @@ read_nmea() and read_novatel().
 
 '''
 
-__ver__ = '0.4.3'
+__ver__ = '0.4.4'
 

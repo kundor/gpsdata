@@ -50,6 +50,9 @@ def tofloat(x):
 
 to3float = lambda s : tuple(tofloat(s[k*14:(k+1)*14]) for k in (0,1,2))
 
+def delta2float(x):
+    return x.days * 86400. + float(x.seconds) + x.microseconds / 1e9
+
 
 def versioncheck(ver):
     '''
@@ -344,7 +347,7 @@ RINEX = {
     # Up, East, North shift (meters) from marker position
     'WAVELENGTH FACT L1/2' : listonce((('ambiguity', 0, 53, wavelength()),)),
     '# / TYPES OF OBSERV ' : listonce((('obscodes', 0, 60, obscode()),)),
-    'INTERVAL            ' : listonce((('obsinterval', 0, 10, tofloat),)),
+    'INTERVAL            ' : listonce((('interval', 0, 10, tofloat),)),
     'TIME OF FIRST OBS   ' : header((('firsttime', 0, 43, parsetime),
                               ('firsttimesys', 48, 51)), 1),
     'TIME OF LAST OBS    ' : header((('endtime', 0, 43, parsetime),
@@ -375,7 +378,7 @@ class recordLine(object):
         self.oldepoch = self.epoch
         self.epoch = parsetime(self.line[0:26], True, self.baseyear)
         if self.epoch is not None and self.oldepoch is not None:
-            self.intervals.add(self.epoch - self.oldepoch)
+            self.intervals.add(delta2float(self.epoch - self.oldepoch))
         self.numrec = toint(self.line[29:32])
         self.flag = toint(self.line[28])
 

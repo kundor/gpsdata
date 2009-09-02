@@ -1,3 +1,11 @@
+    - Was losing track of header interval information
+      - Also, turn parser-computed intervals into floats (from timedeltas)
+        for proper comparison with the interval read from the header
+    - We can't check for phase shift vs. the previous record if there was no 
+      measurement for this satellite in the previous record!
+    - Accept .z or .Z endings for gzipped files
+    - Remove numpy dependency (replace sum(X) by reduce(add, X))
+
 Version 0.4.3, August 27 2009
     - Use ''.ljust() to pad to 80 spaces instead of formatting operation
     - Disable command-line option "-p" for pickling, since it's broken.
@@ -41,7 +49,8 @@ Version 0.4, August 1 2009
       observation for all satellites, outputting to given filename
       (extension determines format) (using matplotlib)
     - split gpsdata.iter() to gpsdata.iterdict() and gpsdata.iterlist()
-    - eliminate gpsdata.iterepochs() in favor of gpsdata.iter('epoch')
+    - eliminate gpsdata.iterepochs() in favor of gpsdata.iterlist('epoch')
+      or gpsdata.iterdict('epoch')
     - create utility.py module for `useful' classes that didn't belong in
       gpsdata or readfile:  value, listvalue, fileread so far
       - This fixes a recursive dependency problem in `import readfile'
@@ -51,7 +60,7 @@ Version 0.4, August 1 2009
     - Count number of header sections in RINEX file
     - Track "phase connected arcs", ie periods between cycle slips, for
       each satellite.
-      - New function in gpsdata.GPSData: breakphase, checkphase, sanearcs
+      - New functions in gpsdata.GPSData: breakphase, checkphase, sanearcs
     - RINEX: numrec in event flag 5 observation header indicates header lines
       following; process them.
       - since "epoch is significant" for flag 5, mark these header values
@@ -61,13 +70,13 @@ Version 0.4, August 1 2009
       - also mark records between flag 2 (start moving) and flag 3 (stop) as
         "in motion."
     - Correctly consume any PRN list continuation lines for event flag 6
-      (which we ignore.)
+      (Cycle Slip Records, which we ignore.)
 
 Version 0.3.1, July 21 2009
     - fix operation for tarfiles (was using nonexistent next()):
       introduce readfile.fileread class to wrap various file-like objects
     - record.ptec(prn) returns (uncorrected, instantaneous, slant) phase TEC
-      record.ctec(prn) returns uncorrected instantaneous slant code TEC
+      record.ctec(prn) returns code TEC
     - Include leap seconds, observation interval in header summary
 
 Version 0.3, July 20 2009
@@ -98,7 +107,7 @@ Version 0.2, July 15 2009
     - use standard Python datetime for time data, not a home-grown struct
       - correctly deal with GPS, GLONASS (UTC), Galileo (TAI) time systems
       - include gpstime.py with useful time zones, leapseconds data
-      - gpstime.gpsdatetime is a datetime class allowing utc offsets which are
+      - gpstime.gpsdatetime is a datetime class allowing UTC offsets which are
         not whole minutes
       - 2-digit years disambiguated by TIME OF FIRST/LAST OBS
     - command-line call to rinex.py outputs header info

@@ -25,7 +25,7 @@ import warnings
 from datetime import datetime, timedelta
 from textwrap import wrap
 from warnings import warn
-from numpy import sum
+from operator import add
 
 from utility import listvalue, metadict
 from gpstime import leapseconds, gpsdatetime, gpstz, utctz, taitz
@@ -275,10 +275,15 @@ class GPSData(list):
             # L2 cycles in 30 seconds (our standard interval), there is almost
             # certainly a cycle slip.  (L2 per TECU is 2.3254, Carrano 08)
             # TODO: scale the boundary for different intervals
-            slip = abs(self[-1].ptec(prn) - self[len(self) - 2].ptec(prn))
-            if slip > 8 / 2.3254:
-                # print 'whoa cycle slippage', prn, which, slip
-                self.breakphase(prn)
+            if prn in self[len(self) - 2]:
+                slip = abs(self[-1].ptec(prn) - self[len(self) - 2].ptec(prn))
+                if slip > 8 / 2.3254:
+                    # print 'whoa cycle slippage', prn, which, slip
+                    self.breakphase(prn)
+            elif (prn in self.phasearcs and
+                    self.phasearcs[prn][0] < len(self) - 1 and
+                    self.phasearcs[prn][1] is None):
+                self.phasearcs[prn][1] = len(self) - 2
             # try:
             #     idx = max([k for k in xrange(len(self.phasearcs[prn])) if
             #               self.phasearcs[prn][k][0] <= which])
@@ -466,7 +471,7 @@ class GPSData(list):
                 #  - The worst 20% of the values, if their badness > 1
                 targ = (arc[1] - arc[0]) / 5  
                 # we will omit at most `targ' bad measurements
-                leftout = (arc[1] - arc[0]) - sum(arc[2])
+                leftout = (arc[1] - arc[0]) - reduce(add, arc[3])
                 bound = 5  
                 # we can omit records worse than this without exceeding targ
                 while leftout < targ and bound:

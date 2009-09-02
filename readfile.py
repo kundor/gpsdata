@@ -58,11 +58,17 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
                 print 'Unpacking noncompressed tarfile.'
             zfile = tarfile.open(filename,'r:')  # Force no gunzip
             zfile = zfile.extractfile(zfile.next())
-    elif gunzip or gunzip is None and filename.lower().endswith('.gz'):
+    elif gunzip or gunzip is None and (filename.lower().endswith('.gz')
+            or filename.lower().endswith('.z')):
         if verbose:
             print 'Gunzipping file.'
         zfile = gzip.open(filename)
-        zfile.name = filename[:filename.rfind('.gz')]
+        if filename.lower().rfind('.gz') > 0:
+            zfile.name = filename[:filename.lower().rfind('.gz')]
+        elif filename.lower().rfind('.z') > 0:
+            zfile.name = filename[:filename.lower().rfind('.z')]
+        else:
+            zfile.name = filename
     else:
         zfile = open(filename)
     if format in ('RINEX', 'CRINEX') or (format is None and
