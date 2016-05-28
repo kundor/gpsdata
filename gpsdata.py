@@ -5,7 +5,7 @@ Store observation data from a GPS Receiver
 Stores data as provided in RINEX files or other data logs.
 Specifically, store GPS Time, Pseudorange, Phase, Doppler Frequency, and SNR
 for each satellite, and each frequency, observed.
-.iter() allows iteration over these values as:
+.iterdict() allows iteration over these values as:
     -a dictionary of dictionaries of all satellites and fields, per epoch
     -a dictionary, for a given satellite, for each epoch
     -a number, for a given satellite, frequency, and field, per epoch
