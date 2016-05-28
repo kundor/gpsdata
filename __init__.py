@@ -1,7 +1,7 @@
 '''
 gpsdata Package: Classes and utilities for GPS Observation data
 
-The main thing provided is the class gpsdata.gpsdata.GPSData, which stores
+The main thing provided is the class gpsdata.GPSData, which stores
 pseudoranges, phase, doppler, and SNR for a variety of satellites and
 frequencies, as recorded by some receiver.
 It is planned that this class will also contain ancillary data for these
@@ -24,3 +24,4 @@ read_nmea() and read_novatel().
 
 __ver__ = '0.4.4'
 
+from gpsdata import GPSData
