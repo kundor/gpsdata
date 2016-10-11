@@ -159,11 +159,11 @@ class LeapSeconds(dict):
             elif type == 2:
                 if len(line) < 36 or re.match(b' ?-* ?$| RELATIONSHIP| Limits', line):
                     continue
-                if line[0:6].strip() != '':
+                if line[0:6].strip() != b'':
                     year = int(line[0:6])
                 month = mons.index(line[7:10].upper())
-                day = int(line[12:15].rstrip('. '))
-                adjust = float(line[31:47].replace(' ', '').rstrip('s\t\n'))
+                day = int(line[12:15].rstrip(b'. '))
+                adjust = float(line[31:47].replace(b' ', b'').rstrip(b's\t\n'))
             lfile.write(datetime(year, month, day).strftime('%Y/%m/%d-%H:%M:%S')
                                                   + ' : ' + str(adjust) + '\n')
         upd.close()
