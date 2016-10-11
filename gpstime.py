@@ -25,7 +25,8 @@ NB: Standard Python datetime objects are only precise to 1 microsecond.
 import os
 import re
 from os import path
-from urllib2 import urlopen, URLError
+from urllib.request import urlopen
+from urllib.error import URLError
 from datetime import datetime, timedelta, tzinfo as TZInfo
 from time import strptime
 from warnings import warn
@@ -49,7 +50,7 @@ class UTCOffset(TZInfo):
             elif offset < timedelta(0):
                 name = 'UTC - ' + str(-offset).split(':')[0:end].join(':')
             else:
-                name= 'UTC'
+                name = 'UTC'
         self.name = name
 
     def utcoffset(self, dt):
@@ -133,7 +134,7 @@ class LeapSeconds(dict):
         web sources.
         '''
         if not cls.timetoupdate():
-            print 'No potential leap second has occurred since last update.'
+            print('No potential leap second has occurred since last update.')
             return False
         if not os.access(path.dirname(cls.infofile), os.W_OK):
             raise(IOError, 'Leap second data file cannot be written.')
