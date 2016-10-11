@@ -31,7 +31,7 @@ from datetime import datetime, timedelta, tzinfo as TZInfo
 from time import strptime
 from warnings import warn
 
-URL1 = 'http://maiiia.usno.navy.mil/ser7/tai-utc.dat'
+URL1 = 'http://maia.usno.navy.mil/ser7/tai-utc.dat'
 URL2 = 'http://hpiers.obspm.fr/iers/bul/bulc/UTC-TAI.history'
 
 class UTCOffset(TZInfo):
@@ -110,7 +110,7 @@ class LeapSeconds(dict):
         except IOError:
             return True  # ditto
         try:
-            updtime = datetime(*(strptime(fid.next(),
+            updtime = datetime(*(strptime(fid.readline(),
                                                   'Updated: %Y/%m/%d\n')[0:6]))
         except ValueError:
             warn('Leap second data file in invalid format.')
@@ -144,8 +144,8 @@ class LeapSeconds(dict):
         except URLError:
             upd = urlopen(URL2)
             type = 2
-        mons = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG',
-                'SEP', 'OCT', 'NOV', 'DEC']
+        mons = ['', b'JAN', b'FEB', b'MAR', b'APR', b'MAY', b'JUN', b'JUL',
+                b'AUG', b'SEP', b'OCT', b'NOV', b'DEC']
         newfile = path.join(path.dirname(__file__), 'leapseco.new')
         lfile = open(newfile, 'w')
         lfile.write('Updated: ' + datetime.utcnow().strftime('%Y/%m/%d\n'))
@@ -157,8 +157,7 @@ class LeapSeconds(dict):
                 day = int(line[10:13])
                 adjust = float(line[36:48])
             elif type == 2:
-                if len(line) < 36 or re.match(' ?-* ?$| RELATIONSHIP| Limits',
-                                              line):
+                if len(line) < 36 or re.match(b' ?-* ?$| RELATIONSHIP| Limits', line):
                     continue
                 if line[0:6].strip() != '':
                     year = int(line[0:6])
