@@ -27,7 +27,7 @@ import re
 from os import path
 from urllib.request import urlopen
 from urllib.error import URLError
-from datetime import datetime, timedelta, tzinfo as TZInfo
+from datetime import datetime, timedelta, timezone, tzinfo as TZInfo
 from time import strptime
 from warnings import warn
 
@@ -91,7 +91,7 @@ class LeapSeconds(dict):
             match = re.match('^([0-9:/-]+) : ([0-9.-]+)$', line)
             if match:
                 dt = datetime(*(strptime(match.group(1), 
-                                                    '%Y/%m/%d-%H:%M:%S')[0:6]))
+                                      '%Y/%m/%d-%H:%M:%S')[0:6]))
                 self[dt] = float(match.group(2))
         lfile.close()
 
@@ -175,6 +175,27 @@ class LeapSeconds(dict):
 
 leapseconds = LeapSeconds()
 
+def isnaive(dt):
+    return isinstance(dt, datetime) and (dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None)
+
+def leapsecs(dt, cmp):
+    '''# of leapseconds at datetime dt.  Whether dt exceeds the UTC time in
+    the leapseconds dict is determined by the function cmp'''
+    dt = dt.replace(tzinfo = None)
+    if dt.year < 1958:
+        raise ValueError('TAI vs UTC is unclear before 1958; unsupported.')
+    try:
+        return leapseconds[max([l for l in leapseconds if cmp(l, dt)])]
+    except ValueError:
+        return 0 # before 1961-Jan-01, TAI = UTC
+
+def leapsecsutc(utc):
+    '''# of TAI-UTC leapseconds at UTC datetime.'''
+    return leapsecs(utc, lambda l, dt : l <= dt)
+
+def leapsecstai(tai):
+    '''# of TAI-UTC leapseconds at TAI datetime.'''
+    return leapsecs(tai, lambda l, dt : leapseconds[l] <= (dt - l).total_seconds())
 
 class TAIOffset(UTCOffset):
     '''
@@ -187,15 +208,10 @@ class TAIOffset(UTCOffset):
         self.name = name
     
     def utcoffset(self, dt):
-        if dt.tzinfo is self or dt.utcoffset() is not None:
-            # dt is not a naive datetime
-            dt = dt.replace(tzinfo=None)
-        if dt < datetime(1958, 1, 1):
-            raise(ValueError, 'TAI vs UTC is unclear before 1958; unsupported.')
-        try:
-            off = leapseconds[max([l for l in leapseconds if l <= dt])]
-        except ValueError:
-            off = 0
+        if dt.tzinfo in (utctz, timezone.utc):
+            off = leapsecsutc(dt)
+        else:
+            off = leapsecstai(dt - self.offset)
         return timedelta(seconds = off) + self.offset
     
     def fromutc(self, dt):
@@ -251,7 +267,7 @@ class gpsdatetime(datetime):
         '''Return equivalent time for timezone tz.'''
         dt = self.replace(tzinfo=None)
         dt = dt - self.utcoffset()
-        dt = dt + tz.utcoffset(dt)
+        dt = dt + tz.utcoffset(dt.replace(tzinfo=utctz))
         return dt.replace(tzinfo=tz)
 
     def __add__(self, other):
@@ -266,6 +282,10 @@ class gpsdatetime(datetime):
         if isinstance(other, datetime):
             if self.utcoffset() is None and other.utcoffset() is None:
                 return datetime.__sub__(self, other)
+            elif isinstance(self.tzinfo, TAIOffset) and isinstance(other.tzinfo, TAIOffset):
+                off = datetime.__sub__(self.replace(tzinfo=None), other.replace(tzinfo=None))
+                off += other.tzinfo.offset - self.tzinfo.offset
+                return off
             elif self.utcoffset() is not None and other.utcoffset() is not None:
                 off = datetime.__sub__(self.replace(tzinfo=None),
                                        other.replace(tzinfo=None))
