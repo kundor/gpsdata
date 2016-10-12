@@ -39,29 +39,29 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
     (filename, headers) = urllib.urlretrieve(URL)  # does nothing if local file
     if verbose:
         if filename != URL:
-            print URL, 'downloaded to', filename, '.'
+            print(URL, 'downloaded to', filename, '.')
         else:
-            print 'Local file', filename, 'used directly.'
+            print('Local file', filename, 'used directly.')
     if untar or (untar is None and tarfile.is_tarfile(filename)):
         if gunzip:
             if verbose:
-                print 'Unpacking gzipped tarfile.'
+                print('Unpacking gzipped tarfile.')
             zfile = tarfile.open(filename,'r:gz')
             zfile = zfile.extractfile(zfile.next())
         elif gunzip is None:
             if verbose:
-                print 'Unpacking tarfile.'
+                print('Unpacking tarfile.')
             zfile = tarfile.open(filename)  # Automatically handles tar.gz,bz2
             zfile = zfile.extractfile(zfile.next())
         else:
             if verbose:
-                print 'Unpacking noncompressed tarfile.'
+                print('Unpacking noncompressed tarfile.')
             zfile = tarfile.open(filename,'r:')  # Force no gunzip
             zfile = zfile.extractfile(zfile.next())
     elif gunzip or gunzip is None and (filename.lower().endswith('.gz')
             or filename.lower().endswith('.z')):
         if verbose:
-            print 'Gunzipping file.'
+            print('Gunzipping file.')
         zfile = gzip.open(filename)
         if filename.lower().rfind('.gz') > 0:
             zfile.name = filename[:filename.lower().rfind('.gz')]
@@ -74,10 +74,10 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
     if format in ('RINEX', 'CRINEX') or (format is None and
                                     re.search('\.[0-9]{2}[OoDd]$', zfile.name)):
         if verbose:
-            print 'Parsing file in RINEX format.'
+            print('Parsing file in RINEX format.')
         return rinex.get_data(zfile, format == 'CRINEX')
     else:
-        print URL + ': Unsupported file format!'
+        print(URL + ': Unsupported file format!')
 
 
 def index(req, n_file, n_type):
@@ -143,8 +143,8 @@ def main():
               help='File to save data in (must specify -i or -p)')
     (opts, args) = parser.parse_args()
     if opts.version:
-        print 'GPSData version', __ver__, 'supporting RINEX version', \
-              RNX_VER, 'and Compact RINEX version', CR_VER, '.'
+        print('GPSData version', __ver__, 'supporting RINEX version',
+              RNX_VER, 'and Compact RINEX version', CR_VER, '.')
     elif opts.image and opts.pickle:
         parser.error('Cannot output both a pickle and an image - sorry.')
     elif not args:
@@ -153,8 +153,8 @@ def main():
         try:
             parsed_data = [read_file(url, opts.format, opts.verbose, 
                 opts.gunzip, opts.tar) for url in args]
-        except IOError, ioe:
-            print ioe
+        except IOError as ioe:
+            print(ioe)
             sys.exit(ioe.errno)
         if opts.output and opts.pickle:
             op = open(opts.output[0], 'wb')
@@ -174,7 +174,7 @@ def main():
                 plotter.plot(data, opts.image)
         for data in parsed_data:
             if data is not None:
-                print data.header_info()
+                print(data.header_info())
 
 
 if __name__ == '__main__':
