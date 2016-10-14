@@ -28,42 +28,51 @@ from os import path
 from urllib.request import urlopen
 from urllib.error import URLError
 from datetime import datetime, timedelta, timezone, tzinfo as TZInfo
-from time import strptime
+import time
 from warnings import warn
+from collections.abc import Sequence
+from numbers import Number
+
 
 URL1 = 'http://maia.usno.navy.mil/ser7/tai-utc.dat'
 URL2 = 'http://hpiers.obspm.fr/iers/bul/bulc/UTC-TAI.history'
 
-class UTCOffset(TZInfo):
-    '''UTC: Coordinated Universal Time; with optional constant offset'''
+gpsepoch = datetime(1980, 1, 6, 0, 0, 0, 0, timezone.utc)
 
-    def __init__(self, offset=timedelta(0), name=None):
-        self.offset = offset
-        if name is None:
-            end = 1
-            if offset.seconds % 60:  # not an even minute
-                end = 3
-            elif offset.seconds % 3600:  # not an even hour
-                end = 2
-            if offset > timedelta(0):
-                name = 'UTC + ' + str(offset).split(':')[0:end].join(':')
-            elif offset < timedelta(0):
-                name = 'UTC - ' + str(-offset).split(':')[0:end].join(':')
-            else:
-                name = 'UTC'
-        self.name = name
+def isnaive(dt):
+    '''Return true if input is a naive datetime.'''
+    return isinstance(dt, datetime) and (dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None)
 
-    def utcoffset(self, dt):
-        return self.offset
-    def dst(self, dt):
-        return timedelta(0)
-    def tzname(self, dt):
-        return self.name
-    def __str__(self):
-        return self.name + ' (datetime.tzinfo timezone)'
+def dhours(hrs):
+    '''Convenience function: returns timedelta of given # of hours.'''
+    return timedelta(hours = hrs)
 
-utctz = UTCOffset()
+def getutctime(dt = None):
+    """Convert datetime, struct_time, tuple (Y,M,D,[H,M,S,μS]), or POSIX timestamp
+    to UTC aware datetime object. Assumed to already be UTC unless the timezone
+    is included (aware datetime objects and struct_times).
+    """
+    if dt is None:
+        return datetime.now(timezone.utc)
+    elif isinstance(dt, time.struct_time):
+        return datetime.fromtimestamp(time.mktime(dt), timezone.utc)
+    elif isinstance(dt, Sequence): # list or tuple: Year, Month, Day, H, M, S, μS
+        return datetime(*dt, tzinfo=timezone.utc)
+    elif isinstance(dt, Number):
+        return datetime.fromtimestamp(dt, timezone.utc)
+    elif isnaive(dt):
+        return dt.replace(tzinfo=timezone.utc)
+    elif isinstance(dt, datetime):
+        return dt.astimezone(timezone.utc)
+    raise ValueError("Don't know how to interpret this as time")
 
+def gpsweek(dt):
+    """Given UTC datetime, return GPS week number."""
+    return int((dt + timedelta(seconds = leapsecsutc(dt)) - gpsepoch) / timedelta(weeks = 1))
+
+def gpsdow(dt):
+    """Given UTC datetime, return GPS Day of Week."""
+    return (dt + timedelta(seconds = leapsecsutc(dt))).isoweekday() % 7
 
 class LeapSeconds(dict):
     '''
@@ -90,7 +99,7 @@ class LeapSeconds(dict):
         for line in lfile:
             match = re.match('^([0-9:/-]+) : ([0-9.-]+)$', line)
             if match:
-                dt = datetime(*(strptime(match.group(1), 
+                dt = datetime(*(time.strptime(match.group(1), 
                                       '%Y/%m/%d-%H:%M:%S')[0:6]))
                 self[dt] = float(match.group(2))
         lfile.close()
@@ -110,7 +119,7 @@ class LeapSeconds(dict):
         except IOError:
             return True  # ditto
         try:
-            updtime = datetime(*(strptime(fid.readline(),
+            updtime = datetime(*(time.strptime(fid.readline(),
                                                   'Updated: %Y/%m/%d\n')[0:6]))
         except ValueError:
             warn('Leap second data file in invalid format.')
@@ -175,12 +184,9 @@ class LeapSeconds(dict):
 
 leapseconds = LeapSeconds()
 
-def isnaive(dt):
-    return isinstance(dt, datetime) and (dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None)
-
 def leapsecs(dt, cmp):
     '''# of leapseconds at datetime dt.  Whether dt exceeds the UTC time in
-    the leapseconds dict is determined by the function cmp'''
+    the leapseconds dict is determined by the provided function cmp.'''
     dt = dt.replace(tzinfo = None)
     if dt.year < 1958:
         raise ValueError('TAI vs UTC is unclear before 1958; unsupported.')
@@ -196,6 +202,36 @@ def leapsecsutc(utc):
 def leapsecstai(tai):
     '''# of TAI-UTC leapseconds at TAI datetime.'''
     return leapsecs(tai, lambda l, dt : leapseconds[l] <= (dt - l).total_seconds())
+
+class UTCOffset(TZInfo):
+    '''UTC: Coordinated Universal Time; with optional constant offset'''
+
+    def __init__(self, offset=timedelta(0), name=None):
+        self.offset = offset
+        if name is None:
+            end = 1
+            if offset.seconds % 60:  # not an even minute
+                end = 3
+            elif offset.seconds % 3600:  # not an even hour
+                end = 2
+            if offset > timedelta(0):
+                name = 'UTC + ' + str(offset).split(':')[0:end].join(':')
+            elif offset < timedelta(0):
+                name = 'UTC - ' + str(-offset).split(':')[0:end].join(':')
+            else:
+                name = 'UTC'
+        self.name = name
+
+    def utcoffset(self, dt):
+        return self.offset
+    def dst(self, dt):
+        return timedelta(0)
+    def tzname(self, dt):
+        return self.name
+    def __str__(self):
+        return self.name + ' (datetime.tzinfo timezone)'
+
+utctz = UTCOffset()
 
 class TAIOffset(UTCOffset):
     '''
@@ -220,7 +256,6 @@ class TAIOffset(UTCOffset):
 
 taitz = TAIOffset()
 gpstz = TAIOffset(timedelta(seconds=-19), 'GPS')
-
 
 class gpsdatetime(datetime):
     '''
