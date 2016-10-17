@@ -87,7 +87,7 @@ def index(req, n_file, n_type):
     '''
     database = '/web/gps/data/'
     filedate = time.strptime(n_file[5:11], '%y%m%d')
-    url = os.path.join(database, n_file[0:4], `filedate.tm_year`, n_file[7:9],
+    url = os.path.join(database, n_file[0:4], str(filedate.tm_year), n_file[7:9],
                                                                'rinex', n_file)
     # Parse RINEX file
     dat = read_file(url)

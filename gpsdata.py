@@ -563,7 +563,7 @@ class GPSData(list):
         if 'leapseconds' in self.meta:
             for recnum, ls in self.meta.leapseconds.items():
                 if ls != gpstz.utcoffset(self[recnum].epoch).seconds:
-                    wstr = 'Leap seconds in header (' + `ls` + ') '
+                    wstr = 'Leap seconds in header (' + str(ls) + ') '
                     wstr += 'do not match system leap seconds ('
                     wstr += str(gpstz.utcoffset(self[recnum].epoch)) + ').'
                     if leapseconds.timetoupdate():
@@ -594,9 +594,9 @@ class GPSData(list):
             self.meta['interval'] = min(intervals)
         if 'numsatellites' in self.meta:
             if self.meta.numsatellites != len(obspersat):
-                warn('# OF SATELLITES header ' + `self.meta.numsatellites` +
+                warn('# OF SATELLITES header ' + str(self.meta.numsatellites) +
                      ' does not matched observed number of satellites ' +
-                     `len(obspersat)` + '.')
+                     str(len(obspersat)) + '.')
         else:
             self.meta['numsatellites'] = len(obspersat)
         if 'obsnumpersatellite' in self.meta:
@@ -613,9 +613,9 @@ class GPSData(list):
                 rns = self.meta.obsnumpersatellite[prn]
                 for (c, obs) in enumerate(self.obscodes(0)):
                     if ops[obs] != rns[c]:
-                        warn(' '.join(('Header claimed', `rns[c]`, obs,
+                        warn(' '.join(('Header claimed', str(rns[c]), obs,
                                        'observations for prn', prn, 'but only', 
-                                       `ops[obs]`, 'observed.')))
+                                       str(ops[obs]), 'observed.')))
         else:
             self.meta['obsnumpersatellite'] = {}
             for prn in obspersat:
@@ -655,17 +655,17 @@ class GPSData(list):
             hstr += '\nLeap seconds:'
             for recnum, ls in self.meta.leapseconds.items():
                 if (recnum):
-                    hstr += `recnum` + ')'
-                hstr += '\n\t' + str(ls) + '\t(records ' + `recnum` + ' -- '
-            hstr += `len(self)` + ')'
+                    hstr += str(recnum) + ')'
+                hstr += '\n\t' + str(ls) + '\t(records ' + str(recnum) + ' -- '
+            hstr += str(len(self)) + ')'
         else:
             hstr += '\nLeap seconds:\t' + str(self.meta.leapseconds[0])
         hstr += '\nInterval:\t' + str(self.meta.interval) + '\n'
         if 'comment' in self.meta:
-            hstr += 'Comments (' + `len(self.meta.comment)` + '):\n'
+            hstr += 'Comments (' + str(len(self.meta.comment)) + '):\n'
             hstr += '-' * 60 + '\n' + '\n'.join(self.meta.comment) + '\n' + \
                     '-' * 60 + '\n'
-        hstr += `self.meta.numsatellites` + ' satellites observed. '
+        hstr += str(self.meta.numsatellites) + ' satellites observed. '
         hstr += 'Number of observations:\n'
         hstr += 'PRN\t' + '\t'.join(['%5s' % s for s in self.obscodes(0)])
         for (prn, counts) in self.meta.obsnumpersatellite.items():
