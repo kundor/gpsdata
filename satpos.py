@@ -88,10 +88,11 @@ def readsp3(filename):
     return poslist
 
 def rot3(vector, angle):
-    rotmat = np.matrix([[ np.cos(angle), np.sin(angle), 0],
-                        [-np.sin(angle), np.cos(angle), 0],
-                        [             0,             0, 1]])
-    return np.array((rotmat * np.matrix(vector).T).T)[0]
+    """Rotate vector by angle around z-axis"""
+    rotmat = np.array([[ np.cos(angle), np.sin(angle), 0],
+                       [-np.sin(angle), np.cos(angle), 0],
+                       [             0,             0, 1]])
+    return rotmat @ vector
 
 def near_indices(t, tow, n=7):
     """The indices of the n closest times to t"""
@@ -100,30 +101,22 @@ def near_indices(t, tow, n=7):
 def sp3_interpolator(t, tow, xyz):
 # This function modified from code by Ryan Hardy
     n = len(tow)
-    coeffs = np.zeros((3, n))
-    omega = 2*2*np.pi/86164.090530833
-    independent = np.matrix(np.zeros((n, n)))
+    omega = 2*2*np.pi/86164.090530833 # 4π/mean sidereal day
+    independent = np.zeros((n, n))
 
     tinterp = tow - np.median(tow)
-    xr = np.zeros(n)
-    yr = np.zeros(n)
-    zr = np.zeros(n)
     for j in range(-(n-1)//2, (n-1)//2+1):
         independent[j] = np.cos(np.abs(j)*omega*tinterp - (j > 0)*np.pi/2)
-    for j in range(n):
-        xr[j], yr[j], zr[j] = rot3(xyz[j], omega/2*tinterp[j])
-        
+    xyzr = [rot3(xyz[j], omega/2*tinterp[j]) for j in range(n)]
+     
     independent = independent.T
     eig =  np.linalg.eig(independent)
-    iinv  = (eig[1]*1/eig[0]*np.eye(n)*np.linalg.inv(eig[1]))
+    iinv  = (eig[1] * 1/eig[0] @ np.linalg.inv(eig[1]))
 
-    coeffs[0] = np.array(iinv*np.matrix(xr).T).T[0]
-    coeffs[1] = np.array(iinv*np.matrix(yr).T).T[0]
-    coeffs[2] = np.array(iinv*np.matrix(zr).T).T[0]
-    res = np.matrix(xr).T-independent*np.matrix(coeffs[0]).T
+    coeffs = iinv @ xyzr
     j = np.arange(-(n-1)//2, (n-1)//2 + 1)
-    tx = (t - np.median(tow))
-    r_inertial =  np.sum(coeffs[:, j]*np.cos(np.abs(j)*omega*tx-(j > 0)*np.pi/2), -1)
+    tx = t - np.median(tow)
+    r_inertial =  np.sum(coeffs[j].T * np.cos(np.abs(j)*omega*tx - (j > 0)*np.pi/2), -1)
     return rot3(r_inertial, -omega/2*tx)
 
 def satpos(poslist, prn, sec):
