@@ -81,13 +81,19 @@ class fileread(object):
             return file
         fr = object.__new__(cls)
         if isinstance(file, str):
-            fr.fid = open(str)
+            fr.fid = open(file)
+            fr.name = file
         elif isinstance(file, int):
             fr.fid = os.fdopen(file)
+            fr.name = "FD: " + str(file)
         elif hasattr(file, 'readline'):
             fr.fid = file
+            if hasattr(file, 'name'):
+                fr.name = file.name
+            elif hasattr(file, 'url'):
+                fr.name = file.url
         else:
-            raise ValueError("Input of type " + `type(file)` +
+            raise ValueError("Input of type " + str(type(file)) +
                                                           " is not supported.")
         fr.reset()
         return fr
@@ -99,11 +105,11 @@ class fileread(object):
             raise StopIteration()
         self.lineno += 1
         return line.rstrip('\r\n')
+
+    __next__ = next
     
     def readline(self):
-        '''A synonym for next() which doesn't strip newlines or raise 
-        StopIteration.
-        '''
+        '''A synonym for next() which doesn't strip newlines or raise StopIteration.'''
         line = self.fid.readline()
         if line:
             self.lineno += 1
