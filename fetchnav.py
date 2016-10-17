@@ -2,6 +2,7 @@ from ftplib import FTP
 from urllib.request import urlretrieve
 from gpstime import getutctime, gpsweek, gpsdow, dhours
 import os
+import subprocess
 
 sp3dir = '/inge/scratch/sp3'
 
@@ -33,26 +34,31 @@ sp3sites = [
 #]
 # hourly : %YEAR/%DoY/hour%DoY0.%YYn.Z
 
-try:
-    os.makedirs(sp3dir, exist_ok = True)
-except OSError as e:
-    print("The path where we store sp3 files, " + sp3dir + ", is inaccessible "
-            "(occupied by another file, or no permissions).")
-    print(e)
-    raise SystemExit
+while True:
+    try:
+        os.makedirs(sp3dir, exist_ok = True)
+    except OSError as e:
+        print("The directory to store sp3 files, " + sp3dir + ", is inaccessible "
+                "(occupied by another file, or no permissions).")
+        print(e)
+        sp3dir = input("Choose another path, or q to quit:")
+        if sp3dir == 'q':
+            raise
+        continue
+    break
 
 def sp3path(filename):
     return os.path.join(sp3dir, filename)
 
 def ultra(dt):
     """IGS ultrarapid filename immediately preceding dt."""
-    return 'igu{}{}_{:02}.sp3.Z'.format(gpsweek(dt), gpsdow(dt), dt.hour//6*6)
+    return 'igu{}{}_{:02}.sp3'.format(gpsweek(dt), gpsdow(dt), dt.hour//6*6)
 
 def sp3list(dt):
     """Return list of potential filenames containing ephemerides for the given
     time, in decreasing order of preference."""
-    return ['igs{}{}.sp3.Z'.format(gpsweek(dt), gpsdow(dt)),
-            'igr{}{}.sp3.Z'.format(gpsweek(dt), gpsdow(dt)),
+    return ['igs{}{}.sp3'.format(gpsweek(dt), gpsdow(dt)),
+            'igr{}{}.sp3'.format(gpsweek(dt), gpsdow(dt)),
             ultra(dt + dhours(18)),
             ultra(dt + dhours(12)),
             ultra(dt + dhours(6)),
@@ -90,10 +96,21 @@ def ftplist(site, dir, wk1, wk2):
         return dirfiles
 
 def ftpfetch(site, dir, file):
-    fullpath = 'ftp://' + site + '/' + dir + '/' + file[3:7] + '/' + file
-    (filename, headers) = urlretrieve(fullpath, sp3path(file))
+    fullpath = 'ftp://' + site + '/' + dir + '/' + file[3:7] + '/' + file + '.Z'
+    (filename, headers) = urlretrieve(fullpath, sp3path(file + '.Z'))
 # overwrites any existing file without complaint
-    return filename
+    decompresscmds = [['compress', '-d', filename],
+                      ['gunzip', filename],
+                      ['gzip', '-d', filename]]
+    for cmd in decompresscmds:
+        try:
+            subprocess.run(cmd, check = True)
+        except (OSError, subprocess.CalledProcessError):
+            continue
+        if canread(sp3path(file)):
+            return sp3path(file)
+    raise RuntimeError('Could not get an external program to decompress the file '
+            + filename)
 
 def getsp3file(dt = None):
     """Download the appropriate sp3 file for the given time and return filename.
@@ -122,7 +139,7 @@ def getsp3file(dt = None):
         except Exception:
             print(site + ' failed; trying another...')
             continue
-        ftpfound = [f in remotelist for f in flist]
+        ftpfound = [f + '.Z' in remotelist for f in flist]
         if True not in ftpfound:
             print('No files found on ' + site + '; trying another...')
             continue
