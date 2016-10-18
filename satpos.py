@@ -1,10 +1,10 @@
-from fetchnav import getsp3file
 from utility import fileread
-from gpstime import getutctime, gpsdatetime
+from gpstime import gpsdatetime
 from numbers import Number
 import re
 import numpy as np
 
+__all__ = ['readsp3', 'satpos']
 
 sp3head = [(r'#[abc][PV]', 1),
            (r'##', 1),
@@ -43,7 +43,7 @@ class posrecord(dict):
             return dict.__contains__(self, 'G%02d' % index)
         return dict.__contains__(self, index)
 
-def procheader(fid):        
+def _procheader(fid):        
     for cc, num in sp3head:
         for _ in range(num):
             ll = fid.next()
@@ -52,7 +52,7 @@ def procheader(fid):
                         + str(fid.lineno) + ' begins ' + ll[:len(cc)] + '; '
                         'we expected ' + cc + ').')
 
-def gps_second(epline):
+def _gps_second(epline):
     """Convert an epoch header line to seconds from the gps epoch.
     
     The value is a Python float, which has a resolution of roughly one microsecond
@@ -60,7 +60,7 @@ def gps_second(epline):
     dt = gpsdatetime.strptime(epline[:29], "*  %Y %m %d %H %M %S.%f")
     return (dt - gpsdatetime()).total_seconds()
     
-def addpos(rec, pline):
+def _addpos(rec, pline):
     prn = pline[1:4]
     x = float(pline[4:18])
     y = float(pline[18:32])
@@ -68,9 +68,12 @@ def addpos(rec, pline):
     rec[prn] = (x, y, z)
 
 def readsp3(filename):
-    """List of (x,y,z) tuples from the sp3 file."""
+    """List of dictionaries, PRN to (x,y,z) tuple, from the sp3 file.
+    
+    Each dictionary has an epoch field with the seconds since the GPS epoch.
+    """
     fid = fileread(filename)
-    procheader(fid)
+    _procheader(fid)
     poslist = []
 # epoch lines begin with '*'. Position lines begin with 'P'.
 # Velocity lines begin with 'V' (ignored); correlation lines begin with 'E' (ignored).
@@ -79,22 +82,22 @@ def readsp3(filename):
         if line[0] in ('E', 'V'):
             continue
         elif line[0] == '*':
-            poslist.append(posrecord(gps_second(line)))
+            poslist.append(posrecord(_gps_second(line)))
         elif line[0] == 'P':
-            addpos(poslist[-1], line)
+            _addpos(poslist[-1], line)
         else:
             print('Unrecognized line in sp3 file ' + filename + ':\n' + line
                     + '\nIgnoring...')
     return poslist
 
-def rot3(vector, angle):
+def _rot3(vector, angle):
     """Rotate vector by angle around z-axis"""
     rotmat = np.array([[ np.cos(angle), np.sin(angle), 0],
                        [-np.sin(angle), np.cos(angle), 0],
                        [             0,             0, 1]])
     return rotmat @ vector
 
-def near_indices(t, tow, n=7):
+def _near_indices(t, tow, n=7):
     """The indices of the n closest times to t"""
     return np.sort(np.argsort(np.abs(tow-t))[:n])
 
@@ -107,7 +110,7 @@ def sp3_interpolator(t, tow, xyz):
     tinterp = tow - np.median(tow)
     for j in range(-(n-1)//2, (n-1)//2+1):
         independent[j] = np.cos(np.abs(j)*omega*tinterp - (j > 0)*np.pi/2)
-    xyzr = [rot3(xyz[j], omega/2*tinterp[j]) for j in range(n)]
+    xyzr = [_rot3(xyz[j], omega/2*tinterp[j]) for j in range(n)]
      
     independent = independent.T
     eig =  np.linalg.eig(independent)
@@ -117,7 +120,7 @@ def sp3_interpolator(t, tow, xyz):
     j = np.arange(-(n-1)//2, (n-1)//2 + 1)
     tx = t - np.median(tow)
     r_inertial =  np.sum(coeffs[j].T * np.cos(np.abs(j)*omega*tx - (j > 0)*np.pi/2), -1)
-    return rot3(r_inertial, -omega/2*tx)
+    return _rot3(r_inertial, -omega/2*tx)
 
 def satpos(poslist, prn, sec):
     """Compute position of GPS satellite with given prn # at given GPS second.
@@ -127,7 +130,7 @@ def satpos(poslist, prn, sec):
     """
 # Just a dumb wrapper for sp3_interpolator for now
     tow = np.array([p.epoch for p in poslist])
-    m = near_indices(sec, tow)
+    m = _near_indices(sec, tow)
     xyz = np.array([poslist[k][prn] for k in m])
     return sp3_interpolator(sec, tow[m], xyz)
 
