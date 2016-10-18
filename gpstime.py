@@ -56,6 +56,9 @@ def getutctime(dt = None):
         return datetime.now(timezone.utc)
     elif isinstance(dt, time.struct_time):
         return datetime.fromtimestamp(time.mktime(dt), timezone.utc)
+    elif isinstance(dt, Sequence) and len(dt) == 2: # list or tuple: GPS Week, GPS second of week
+        gt = gpsdatetime() + timedelta(weeks = dt[0]) + timedelta(seconds = dt[1])
+        return gt.astimezone(timezone.utc)
     elif isinstance(dt, Sequence): # list or tuple: Year, Month, Day, H, M, S, μS
         return datetime(*dt, tzinfo=timezone.utc)
     elif isinstance(dt, Number):
@@ -68,11 +71,11 @@ def getutctime(dt = None):
 
 def gpsweek(dt):
     """Given UTC datetime, return GPS week number."""
-    return int((dt + timedelta(seconds = leapsecsutc(dt)) - gpsepoch) / timedelta(weeks = 1))
+    return int((dt + timedelta(seconds = gpsleapsecsutc(dt)) - gpsepoch) / timedelta(weeks = 1))
 
 def gpsdow(dt):
     """Given UTC datetime, return GPS Day of Week."""
-    return (dt + timedelta(seconds = leapsecsutc(dt))).isoweekday() % 7
+    return (dt + timedelta(seconds = gpsleapsecsutc(dt))).isoweekday() % 7
 
 class LeapSeconds(dict):
     '''
@@ -198,6 +201,10 @@ def leapsecs(dt, cmp):
 def leapsecsutc(utc):
     '''# of TAI-UTC leapseconds at UTC datetime.'''
     return leapsecs(utc, lambda l, dt : l <= dt)
+
+def gpsleapsecsutc(utc):
+    '''# of GPS-UTC leapseconds at UTC datetime.'''
+    return leapsecs(utc, lambda l, dt : l <= dt) - 19
 
 def leapsecstai(tai):
     '''# of TAI-UTC leapseconds at TAI datetime.'''
