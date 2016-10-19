@@ -134,6 +134,8 @@ def rewrite(odir, ndir, filename=None, log='/home/xenon/student/nima9589/snr89lo
 # Compare truncated azimuth and elevation to computed ones
             dazi = abs(naz - rec.az)
             dele = abs(nel - rec.el)
+            if dazi > 180:
+                dazi = abs(dazi - 360)
             if dazi > 0.6 or dele > 0.6:
                 print('Recorded and computed azimuth, elevation differ by '
                       + str(dazi) + ', ' + str(dele) + ' on line '
