@@ -76,12 +76,12 @@ class snr89(UserList):
         except KeyError:
             print('First four characters of filename, ' + self.site
                   + ', are not a recognized site name. Receiver location unknown.')
-        fid = fileread(os.path.join(dir, filename))
-        for l in fid:
-            try:
-                self.append(parserec(l))
-            except ValueError as e:
-                print(e)
+        with fileread(os.path.join(dir, filename)) as fid:
+            for l in fid:
+                try:
+                    self.append(parserec(l))
+                except ValueError as e:
+                    print(e)
 
 def _gpssow(year, doy, sod):
     dt = _todatetime(year, doy, sod)
@@ -120,28 +120,25 @@ def rewrite(odir, ndir, filename=None, log='/home/xenon/student/nima9589/snr89lo
         return
     pl = poslist(week, sow0, sow0 + 60*60*24)
     os.makedirs(ndir, exist_ok = True)
-    fid = fileread(os.path.join(odir, filename))
-    newfid = open(os.path.join(ndir, filename), 'wt')
-    for l in fid:
-        try:
-            rec = parserec(l)
-        except ValueError as e:
-            print(e, file=log)
-            print('   (on line ' + str(fid.lineno) + ')', file=log)
-            continue
-        naz, nel = gpsazel(rxloc, rec.prn, week, sow0 + rec.sod, pl)
-        if rec.el != 0 or rec.az != 0:
+    with fileread(os.path.join(odir, filename)) as fid, open(os.path.join(ndir, filename), 'wt') as newfid:
+        for l in fid:
+            try:
+                rec = parserec(l)
+            except ValueError as e:
+                print(e, file=log)
+                print('   (on line ' + str(fid.lineno) + ')', file=log)
+                continue
+            naz, nel = gpsazel(rxloc, rec.prn, week, sow0 + rec.sod, pl)
+            if rec.el != 0 or rec.az != 0:
 # Compare truncated azimuth and elevation to computed ones
-            dazi = abs(naz - rec.az)
-            dele = abs(nel - rec.el)
-            if dazi > 180:
-                dazi = abs(dazi - 360)
-            if dazi > 0.6 or dele > 0.6:
-                print('Recorded and computed azimuth, elevation differ by '
-                      + str(dazi) + ', ' + str(dele) + ' on line '
-                      + str(fid.lineno), file=log)
-                print(l, file=log)
-        newfid.write(formrec(rec.prn, nel, naz, rec.sod, rec.snr))
-    fid.close()
-    newfid.close()
+                dazi = abs(naz - rec.az)
+                dele = abs(nel - rec.el)
+                if dazi > 180:
+                    dazi = abs(dazi - 360)
+                if dazi > 0.6 or dele > 0.6:
+                    print('Recorded and computed azimuth, elevation differ by '
+                          + str(dazi) + ', ' + str(dele) + ' on line '
+                          + str(fid.lineno), file=log)
+                    print(l, file=log)
+            newfid.write(formrec(rec.prn, nel, naz, rec.sod, rec.snr))
     log.close()

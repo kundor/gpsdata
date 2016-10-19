@@ -72,23 +72,23 @@ def readsp3(filename):
     
     Each dictionary has an epoch field with the seconds since the GPS epoch.
     """
-    fid = fileread(filename)
-    _procheader(fid)
-    poslist = []
+    with fileread(filename) as fid:
+        _procheader(fid)
+        poslist = []
 # epoch lines begin with '*'. Position lines begin with 'P'.
 # Velocity lines begin with 'V' (ignored); correlation lines begin with 'E' (ignored).
 # (last line is 'EOF').
-    for line in fid:
-        if line[0] in ('E', 'V'):
-            continue
-        elif line[0] == '*':
-            poslist.append(posrecord(_gps_second(line)))
-        elif line[0] == 'P':
-            _addpos(poslist[-1], line)
-        else:
-            print('Unrecognized line in sp3 file ' + filename + ':\n' + line
-                    + '\nIgnoring...')
-    return poslist
+        for line in fid:
+            if line[0] in ('E', 'V'):
+                continue
+            elif line[0] == '*':
+                poslist.append(posrecord(_gps_second(line)))
+            elif line[0] == 'P':
+                _addpos(poslist[-1], line)
+            else:
+                print('Unrecognized line in sp3 file ' + filename + ':\n' + line
+                        + '\nIgnoring...')
+        return poslist
 
 def _rot3(vector, angle):
     """Rotate vector by angle around z-axis"""
