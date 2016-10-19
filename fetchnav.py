@@ -4,7 +4,7 @@ from gpstime import getutctime, gpsweek, gpsdow, dhours
 import os
 import subprocess
 
-sp3dir = '/inge/scratch/sp3'
+sp3dir = '/scratch/sp3'
 
 sp3sites = [
     ('ftp.igs.org',        'pub/product'),
