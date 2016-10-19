@@ -74,8 +74,8 @@ def enu2azel(e,n=None,u=None):
     if n is None and u is None:
         e, n, u = e
     az = atan2(e, n)
-# if az < 0:
-#    az += 2*pi
+    if az < 0:
+        az += 2*pi
     p = sqrt(e*e + n*n)
     el = atan2(u, p)
     return az, el
