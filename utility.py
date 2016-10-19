@@ -3,6 +3,7 @@
 These are not very specific in usage, however, and could be useful anywhere.
 
 '''
+from contextlib import suppress
 
 typedict = {}
 # Declaring classes is really slow, so we reuse them.
@@ -98,6 +99,12 @@ class fileread(object):
         fr.reset()
         return fr
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
     def next(self):
         '''Return the next line, also incrementing `lineno'.'''
         line = self.fid.readline()
@@ -121,10 +128,8 @@ class fileread(object):
     def reset(self):
         '''Go back to the beginning if possible. Set lineno to 0 regardless.'''
         if hasattr(self.fid, 'seek'):
-            try:
+            with suppress(OSError):
                 self.fid.seek(0)
-            except IOError:
-                pass
         self.lineno = 0
 
     def close(self):
@@ -133,9 +138,10 @@ class fileread(object):
             # Closing stdin, stdout, stderr can be bad
             return
         if hasattr(self.fid, 'close'):
-            try:
+            with suppress(OSError, EOFError):
                 self.fid.close()
-            except IOError:
-                pass
+        elif hasattr(self.fid, 'quit'):
+            with suppress(OSError, EOFError):
+                self.fid.quit()
 
 
