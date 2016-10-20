@@ -137,8 +137,7 @@ def rewrite(odir, ndir, filename=None, log='/home/xenon/student/nima9589/snr89lo
                     dazi = abs(dazi - 360)
                 if dazi > 0.6 or dele > 0.6:
                     print('Recorded and computed azimuth, elevation differ by '
-                          + str(dazi) + ', ' + str(dele) + ' on line '
-                          + str(fid.lineno), file=log)
+                          '{:.4f}, {:.4f} on line {}'.format(dazi, dele, fid.lineno), file=log)
                     print(l, file=log)
             newfid.write(formrec(rec.prn, nel, naz, rec.sod, rec.snr))
     log.close()
