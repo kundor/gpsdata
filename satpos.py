@@ -100,22 +100,21 @@ def _rot3(vector, angle):
 
 def sp3_interpolator(t, tow, xyz):
 # This function modified from code by Ryan Hardy
-    n = len(tow)
     omega = 2*2*pi/86164.090530833 # 4π/mean sidereal day
-    tmed = tow[n//2]
+    tmed = tow[3]
 
     tinterp = [t - tmed for t in tow]
-    jrange = [(j + n//2) % n - n//2 for j in range(n)]
-    independent = np.array([[cos(abs(j)*omega*t - (j>0)*pi/2) for t in tinterp] for j in jrange])
-    xyzr = [_rot3(xyz[j], omega/2*tinterp[j]) for j in range(n)]
+    independent = np.array([[1, sin(omega*t), sin(2*omega*t), sin(3*omega*t),
+                   cos(3*omega*t), cos(2*omega*t), cos(omega*t)] for t in tinterp])
+    xyzr = [_rot3(xyz[j], omega/2*tinterp[j]) for j in range(7)]
      
-    eig =  np.linalg.eig(independent.T)
+    eig =  np.linalg.eig(independent)
     iinv  = (eig[1] * 1/eig[0] @ np.linalg.inv(eig[1]))
 
     coeffs = iinv @ xyzr
-    j = np.arange(-(n-1)//2, (n-1)//2 + 1)
+    j = np.arange(-3, 4)
     tx = t - tmed
-    r_inertial =  np.sum(coeffs[j].T * np.cos(np.abs(j)*omega*tx - (j > 0)*np.pi/2), -1)
+    r_inertial = np.cos(j*omega*tx - (j > 0)*pi/2) @ coeffs[j]
     return _rot3(r_inertial, -omega/2*tx)
 
 def satpos(poslist, prn, sec):
