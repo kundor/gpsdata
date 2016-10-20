@@ -142,3 +142,21 @@ def rewrite(odir, ndir, filename=None, log='/home/xenon/student/nima9589/snr89lo
                     print(l, file=log)
             newfid.write(formrec(rec.prn, nel, naz, rec.sod, rec.snr))
     log.close()
+
+vdir = '/bowie/data/vapr/Marshall'
+ndir = '/bowie/data/vapr-azel'
+
+def rewriteall(odir, ndir):
+    import glob
+    files = glob.glob(os.path.join(odir, '*.snr89'))
+    for path in files:
+        file = os.path.basename(path)
+        nfile = os.path.join(ndir, file)
+        if os.path.isfile(nfile):
+            print(file + ' already present in ' + ndir + '. Skipping...')
+            continue
+        rewrite(odir, ndir, file)
+
+# to profile:
+# import cProfile
+# cProfile.run('rewrite(vdir, ndir, "vpr31980.16.snr89")', 'stats_file') 
