@@ -50,11 +50,15 @@ def llh2xyz(lat, lon = None, ht = None):
     z = ((1 - wgs84.e2) * wgs84.ellnormal(lat) + ht) * sin(lat)
     return x, y, z
 
-def _enutrans(lat, lon):
+def _enutrans(lat, lon, vec):
     """Matrix to help turn ECEF coordinates to ENU coordinates at given reference point."""
-    return np.array([[-sin(lon),           cos(lon),          0],
-                     [-sin(lat)*cos(lon), -sin(lat)*sin(lon), cos(lat)],
-                     [ cos(lat)*cos(lon),  cos(lat)*sin(lon), sin(lat)]])
+#    [[-sin(lon),           cos(lon),          0       ],
+#     [-sin(lat)*cos(lon), -sin(lat)*sin(lon), cos(lat)],
+#     [ cos(lat)*cos(lon),  cos(lat)*sin(lon), sin(lat)]])
+    x = -sin(lon)*vec[0] + cos(lon)*vec[1]
+    y = -sin(lat)*cos(lon)*vec[0] - sin(lat)*sin(lon)*vec[1] + cos(lat)*vec[2]
+    z =  cos(lat)*cos(lon)*vec[0] + cos(lat)*sin(lon)*vec[1] + sin(lat)*vec[2]
+    return x, y, z
 
 
 def xyz2enu(base, pt):
@@ -64,7 +68,7 @@ def xyz2enu(base, pt):
     (as numpy arrays), return an array of three coordinates (m).
     """
     lat, lon, ht = xyz2llh(base)
-    return _enutrans(lat, lon) @ (pt - base)
+    return _enutrans(lat, lon, pt - base)
 
 def enu2azel(e,n=None,u=None):
     """Given East-North-Up coordinates, return azimuth and elevation.
