@@ -97,17 +97,18 @@ def _rot3(vector, angle):
                        [             0,             0, 1]])
     return rotmat @ vector
 
-def _near_indices(t, tow, n=7):
-    """The indices of the n closest times to t"""
-    return np.sort(np.argsort(np.abs(tow-t))[:n])
+#def _near_indices(t, tow, n=7):
+#    """The indices of the n closest times to t"""
+#    return np.sort(np.argsort(np.abs(tow-t))[:n])
 
 def sp3_interpolator(t, tow, xyz):
 # This function modified from code by Ryan Hardy
     n = len(tow)
     omega = 2*2*np.pi/86164.090530833 # 4π/mean sidereal day
     independent = np.zeros((n, n))
+    tmed = tow[n//2]
 
-    tinterp = tow - np.median(tow)
+    tinterp = tow - tmed
     for j in range(-(n-1)//2, (n-1)//2+1):
         independent[j] = np.cos(np.abs(j)*omega*tinterp - (j > 0)*np.pi/2)
     xyzr = [_rot3(xyz[j], omega/2*tinterp[j]) for j in range(n)]
@@ -118,7 +119,7 @@ def sp3_interpolator(t, tow, xyz):
 
     coeffs = iinv @ xyzr
     j = np.arange(-(n-1)//2, (n-1)//2 + 1)
-    tx = t - np.median(tow)
+    tx = t - tmed
     r_inertial =  np.sum(coeffs[j].T * np.cos(np.abs(j)*omega*tx - (j > 0)*np.pi/2), -1)
     return _rot3(r_inertial, -omega/2*tx)
 
@@ -129,9 +130,12 @@ def satpos(poslist, prn, sec):
     GPS second is total seconds since the GPS epoch (float).
     """
 # Just a dumb wrapper for sp3_interpolator for now
-    tow = np.array([p.epoch for p in poslist])
-    m = _near_indices(sec, tow)
-    xyz = np.array([poslist[k][prn] for k in m])
-    return sp3_interpolator(sec, tow[m], xyz)
+#    tow = np.array([p.epoch for p in poslist])
+#    m = _near_indices(sec, tow)
+    idx = int((sec - poslist[0].epoch + 450) // 900)
+# We are assuming 15-minute satellite positions here!
+    tow = np.array([poslist[k].epoch for k in range(idx-3,idx+4)])
+    xyz = np.array([poslist[k][prn] for k in range(idx-3,idx+4)])
+    return sp3_interpolator(sec, tow, xyz)
 
     
