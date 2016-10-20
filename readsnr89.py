@@ -2,11 +2,13 @@ import os
 from collections import namedtuple, UserList
 import time
 from datetime import datetime, timedelta, timezone
-from utility import fileread
+from utility import fileread, stdouttofile
 from gpsazel import gpsazel, poslist
 from gpstime import gpsweek, gpsdow, gpsleapsecsutc
 
 sitelocs = { 'vpr3' : (-1283634.1275, -4726427.8944, 4074798.0304) } # actually p041's location
+
+log = '/home/xenon/student/nima9589/snr89log'
 
 Record = namedtuple('Record', ['prn', 'el', 'az', 'sod', 'snr'])
 
@@ -97,16 +99,16 @@ def getazel(snr, index):
     dt = _todatetime(snr.year, snr.doy, snr[index].sod)
     return gpsazel(snr.rxloc, snr[index].prn, gpsweek(dt), _gpssow(snr.year, snr.doy, snr[index].sod))
 
-def rewrite(odir, ndir, filename=None, log='/home/xenon/student/nima9589/snr89log'):
-    log = open(log, 'at')
-    print('--------------------', file=log)
+@stdouttofile(log)
+def rewrite(odir, ndir, filename=None):
+    print('--------------------')
     if filename is None:
         if not canread(odir):
-            print('Given path ' + odir + ' does not lead to a readable file.', file=log)
+            print('Given path ' + odir + ' does not lead to a readable file.')
             return
         filename = os.path.basename(odir)
         odir = os.path.dirname(odir)
-    print(filename, file=log)
+    print(filename)
     site = filename[:4]
     doy = int(filename[4:7])
     year = fullyear(int(filename[9:11]))
@@ -116,7 +118,7 @@ def rewrite(odir, ndir, filename=None, log='/home/xenon/student/nima9589/snr89lo
         rxloc = sitelocs[site]
     except KeyError:
         print('First four characters of filename, ' + site
-              + ', are not a recognized site name. Receiver location unknown.', file=log)
+              + ', are not a recognized site name. Receiver location unknown.')
         return
     pl = poslist(week, sow0, sow0 + 60*60*24)
     os.makedirs(ndir, exist_ok = True)
@@ -125,8 +127,8 @@ def rewrite(odir, ndir, filename=None, log='/home/xenon/student/nima9589/snr89lo
             try:
                 rec = parserec(l)
             except ValueError as e:
-                print(e, file=log)
-                print('   (on line ' + str(fid.lineno) + ')', file=log)
+                print(e)
+                print('   (on line ' + str(fid.lineno) + ')')
                 continue
             naz, nel = gpsazel(rxloc, rec.prn, week, sow0 + rec.sod, pl)
             if rec.el != 0 or rec.az != 0:
@@ -137,10 +139,9 @@ def rewrite(odir, ndir, filename=None, log='/home/xenon/student/nima9589/snr89lo
                     dazi = abs(dazi - 360)
                 if dazi > 0.6 or dele > 0.6:
                     print('Recorded and computed azimuth, elevation differ by '
-                          '{:.4f}, {:.4f} on line {}'.format(dazi, dele, fid.lineno), file=log)
-                    print(l, file=log)
+                          '{:.4f}, {:.4f} on line {}'.format(dazi, dele, fid.lineno))
+                    print(l)
             newfid.write(formrec(rec.prn, nel, naz, rec.sod, rec.snr))
-    log.close()
 
 vdir = '/bowie/data/vapr/Marshall'
 ndir = '/bowie/data/vapr-azel'

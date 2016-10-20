@@ -3,7 +3,13 @@
 These are not very specific in usage, however, and could be useful anywhere.
 
 '''
-from contextlib import suppress
+from contextlib import suppress, redirect_stdout, contextmanager
+
+@contextmanager
+def stdouttofile(file):
+    """A decorator to redirect stdout within a function to the given filename."""
+    with open(file, 'a') as f, redirect_stdout(f):
+        yield
 
 typedict = {}
 # Declaring classes is really slow, so we reuse them.
