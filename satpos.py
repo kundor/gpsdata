@@ -98,7 +98,7 @@ def _rot3(vector, angle):
     z = vector[2]
     return x, y, z
 
-def sp3_interpolator(t, tow, xyz):
+def sp3_interpolator_rot(t, tow, xyz):
 # This function modified from code by Ryan Hardy
     omega = 2*2*pi/86164.090530833 # 4π/mean sidereal day
     tmed = tow[3]
@@ -107,15 +107,19 @@ def sp3_interpolator(t, tow, xyz):
     independent = np.array([[1, sin(omega*t), sin(2*omega*t), sin(3*omega*t),
                    cos(3*omega*t), cos(2*omega*t), cos(omega*t)] for t in tinterp])
     xyzr = [_rot3(xyz[j], omega/2*tinterp[j]) for j in range(7)]
-     
-    eig =  np.linalg.eig(independent)
-    iinv  = (eig[1] * 1/eig[0] @ np.linalg.inv(eig[1]))
-
-    coeffs = iinv @ xyzr
-    j = np.arange(-3, 4)
+    coeffs = np.linalg.solve(independent, xyzr)
     tx = t - tmed
-    r_inertial = np.cos(j*omega*tx - (j > 0)*pi/2) @ coeffs[j]
+    r_inertial = [1, sin(omega*tx), sin(2*omega*tx), sin(3*omega*tx),cos(3*omega*tx), cos(2*omega*tx), cos(omega*tx)] @ coeffs
     return _rot3(r_inertial, -omega/2*tx)
+
+def sp3_interpolator(sec, tow, xyz):
+    # like above, but without the rotating
+    omega = 2*2*pi/86164.090530833 # 4π/mean sidereal day
+    tinterp = [t - sec for t in tow]
+    ind = np.array([[1, sin(omega*t), sin(2*omega*t), sin(3*omega*t),
+                   cos(3*omega*t), cos(2*omega*t), cos(omega*t)] for t in tinterp])
+    coefs = np.linalg.solve(ind, xyz)
+    return [1, 0, 0, 0, 1, 1, 1] @ coefs
 
 def satpos(poslist, prn, sec):
     """Compute position of GPS satellite with given prn # at given GPS second.
