@@ -1,8 +1,9 @@
 from fetchnav import getsp3file
-from satpos import satpos, readsp3
+from satpos import readsp3, satpos, coef_fn, mvec, posrecord
 from coords import xyz2enu, enu2azel
 from warnings import warn
 from math import pi
+from contextlib import suppress
 
 def totalsec(gpsweek, gpssow):
     return gpsweek * 7 * 24 * 60 * 60 + gpssow
@@ -35,16 +36,35 @@ def poslist(gpsweek, sow_start, sow_end = None):
         pl.extend(pl1)
     return pl
 
-def gpsazel(rxloc, prn, gpsweek, gpssow, pl=None):
+def satcoeffs(pl):
+    """Position coefficient functions for all satellites in pl.
+    
+    Given a poslist (as from poslist() or readsp3()), compute interpolating
+    coefficient functions for the positions of each satellite; return a dictionary
+    by PRN.
+    Only PRNs present in every record of pl are used.
+    """
+    cofns = posrecord()
+    for prn in pl[0]:
+        with suppress(KeyError):
+            cofns[prn] = coef_fn(pl, prn)
+    return cofns
+
+def azeldeg(rxloc, sxloc):
+    """Given two ECEF locations in meters, return azimuth and elevation in degrees."""
+    az, el = enu2azel(xyz2enu(rxloc, sxloc))
+    return az * 180 / pi, el * 180 / pi
+
+def gpsazel(rxloc, prn, gpsweek, gpssow, cofns=None, pl=None):
     """Given receiver location (ECEF), prn, GPS week and GPS second,
     return azimuth and elevation in degrees.
     """
-    if pl is None:
-        pl = poslist(gpsweek, gpssow)
     totsec = totalsec(gpsweek, gpssow)
-    sx = satpos(pl, prn, totsec)
-    az, el = enu2azel(xyz2enu(rxloc, sx * 1000))
-    return az * 180 / pi, el * 180 / pi
+    if cofns and prn in cofns:
+        sx = mvec(totsec) @ cofns[prn](totsec)
+    else:
+        if pl is None:
+            pl = poslist(gpsweek, gpssow)
+        sx = satpos(pl, prn, totsec)
+    return azeldeg(rxloc, sx*1000)
 
-
-        

@@ -3,11 +3,13 @@ from collections import namedtuple, UserList
 import time
 from datetime import datetime, timedelta, timezone
 from utility import fileread, stdouttofile
-from gpsazel import gpsazel, poslist
+from gpsazel import gpsazel, poslist, satcoeffs
 from gpstime import gpsweek, gpsdow, gpsleapsecsutc
 
 sitelocs = { 'vpr3' : (-1283634.1275, -4726427.8944, 4074798.0304) } # actually p041's location
 
+vdir = '/bowie/data/vapr/Marshall'
+ndir = '/bowie/data/vapr-azel'
 log = '/home/xenon/student/nima9589/snr89log'
 
 Record = namedtuple('Record', ['prn', 'el', 'az', 'sod', 'snr'])
@@ -54,7 +56,6 @@ def fullyear(yr):
     yearnow = time.gmtime().tm_year
     return (yearnow - yr) // 100 * 100 + yr
 
-
 class snr89(UserList):
     """Class holding data from an snr89 file.
 
@@ -85,6 +86,12 @@ class snr89(UserList):
                 except ValueError as e:
                     print(e)
 
+    def getazel(self, index):
+        """Compute azimuth and elevation for the given record."""
+        dt = _todatetime(self.year, self.doy, self[index].sod)
+        return gpsazel(self.rxloc, self[index].prn, gpsweek(dt),
+                       _gpssow(self.year, self.doy, self[index].sod))
+
 def _gpssow(year, doy, sod):
     dt = _todatetime(year, doy, sod)
     leaps = gpsleapsecsutc(dt)
@@ -93,11 +100,6 @@ def _gpssow(year, doy, sod):
 
 def _todatetime(year, doy, sod):
     return datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(days = doy - 1) + timedelta(seconds = sod)
-
-def getazel(snr, index):
-    """Given snr89 object and record number, compute azimuth and elevation."""
-    dt = _todatetime(snr.year, snr.doy, snr[index].sod)
-    return gpsazel(snr.rxloc, snr[index].prn, gpsweek(dt), _gpssow(snr.year, snr.doy, snr[index].sod))
 
 @stdouttofile(log)
 def rewrite(odir, ndir, filename=None):
@@ -121,6 +123,7 @@ def rewrite(odir, ndir, filename=None):
               + ', are not a recognized site name. Receiver location unknown.')
         return
     pl = poslist(week, sow0, sow0 + 60*60*24)
+    cofns = satcoeffs(pl)
     os.makedirs(ndir, exist_ok = True)
     with fileread(os.path.join(odir, filename)) as fid, open(os.path.join(ndir, filename), 'wt') as newfid:
         for l in fid:
@@ -130,21 +133,18 @@ def rewrite(odir, ndir, filename=None):
                 print(e)
                 print('   (on line ' + str(fid.lineno) + ')')
                 continue
-            naz, nel = gpsazel(rxloc, rec.prn, week, sow0 + rec.sod, pl)
+            naz, nel = gpsazel(rxloc, rec.prn, week, sow0 + rec.sod, cofns, pl)
             if rec.el != 0 or rec.az != 0:
 # Compare truncated azimuth and elevation to computed ones
                 dazi = abs(naz - rec.az)
                 dele = abs(nel - rec.el)
                 if dazi > 180:
                     dazi = abs(dazi - 360)
-                if dazi > 0.6 or dele > 0.6:
+                if max(dazi, dele) > 1:
                     print('Recorded and computed azimuth, elevation differ by '
                           '{:.4f}, {:.4f} on line {}'.format(dazi, dele, fid.lineno))
                     print(l)
             newfid.write(formrec(rec.prn, nel, naz, rec.sod, rec.snr))
-
-vdir = '/bowie/data/vapr/Marshall'
-ndir = '/bowie/data/vapr-azel'
 
 def rewriteall(odir, ndir):
     import glob

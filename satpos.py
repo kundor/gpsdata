@@ -25,22 +25,21 @@ class posrecord(dict):
     Has field epoch in addition to being a dictionary (by PRN code) of XYZ tuples.
     Can access as record.epoch, record[13], record['G17'], or iteration.
     """
-    def __init__(self, epoch):
-        self.epoch = epoch
+    def __init__(self, epoch=None):
+        if epoch:
+            self.epoch = epoch
 
     def __getitem__(self, index):
         """Allow you to access GPS satellites, eg record['G13'], as
         simply record[13].  For GLONASS or Galileo, you must use the full code.
         """
-        if index == 'epoch':
-            return self.epoch
-        if isinstance(index, (int, float)):
+        if isinstance(index, int):
             return dict.__getitem__(self, 'G%02d' % index)
         return dict.__getitem__(self, index)
 
     def __contains__(self, index):
         """Allow containment tests (eg if 13 in record:) for abbreviated GPS PRNs."""
-        if isinstance(index, (int, float)):
+        if isinstance(index, int):
             return dict.__contains__(self, 'G%02d' % index)
         return dict.__contains__(self, index)
 
