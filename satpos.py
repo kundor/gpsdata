@@ -1,11 +1,11 @@
 from utility import fileread
 from gpstime import gpsdatetime
-from numbers import Number
 import re
 import numpy as np
 from math import cos, sin, pi
+from scipy.interpolate import interp1d
 
-__all__ = ['readsp3', 'satpos']
+__all__ = ['readsp3', 'satpos', 'mvec', 'coef_fn']
 
 sp3head = [(r'#[abc][PV]', 1),
            (r'##', 1),
@@ -34,13 +34,13 @@ class posrecord(dict):
         """
         if index == 'epoch':
             return self.epoch
-        if isinstance(index, Number):
+        if isinstance(index, (int, float)):
             return dict.__getitem__(self, 'G%02d' % index)
         return dict.__getitem__(self, index)
 
     def __contains__(self, index):
         """Allow containment tests (eg if 13 in record:) for abbreviated GPS PRNs."""
-        if isinstance(index, (int, long, float)):
+        if isinstance(index, (int, float)):
             return dict.__contains__(self, 'G%02d' % index)
         return dict.__contains__(self, index)
 
@@ -91,47 +91,33 @@ def readsp3(filename):
                         + '\nIgnoring...')
         return poslist
 
-def _rot3(vector, angle):
-    """Rotate vector by angle around z-axis"""
-    x =  cos(angle)*vector[0] + sin(angle)*vector[1]
-    y = -sin(angle)*vector[0] + cos(angle)*vector[1]
-    z = vector[2]
-    return x, y, z
-
-def sp3_interpolator_rot(t, tow, xyz):
-# This function modified from code by Ryan Hardy
-    omega = 2*2*pi/86164.090530833 # 4π/mean sidereal day
-    tmed = tow[3]
-
-    tinterp = [t - tmed for t in tow]
-    independent = np.array([[1, sin(omega*t), sin(2*omega*t), sin(3*omega*t),
-                   cos(3*omega*t), cos(2*omega*t), cos(omega*t)] for t in tinterp])
-    xyzr = [_rot3(xyz[j], omega/2*tinterp[j]) for j in range(7)]
-    coeffs = np.linalg.solve(independent, xyzr)
-    tx = t - tmed
-    r_inertial = [1, sin(omega*tx), sin(2*omega*tx), sin(3*omega*tx),cos(3*omega*tx), cos(2*omega*tx), cos(omega*tx)] @ coeffs
-    return _rot3(r_inertial, -omega/2*tx)
-
-def sp3_interpolator(sec, tow, xyz):
-    # like above, but without the rotating
-    omega = 2*2*pi/86164.090530833 # 4π/mean sidereal day
-    tinterp = [t - sec for t in tow]
-    ind = np.array([[1, sin(omega*t), sin(2*omega*t), sin(3*omega*t),
-                   cos(3*omega*t), cos(2*omega*t), cos(omega*t)] for t in tinterp])
-    coefs = np.linalg.solve(ind, xyz)
-    return [1, 0, 0, 0, 1, 1, 1] @ coefs
-
 def satpos(poslist, prn, sec):
     """Compute position of GPS satellite with given prn # at given GPS second.
 
     Return X, Y, Z cartesian coordinates, in km, Earth-Centered Earth-Fixed.
     GPS second is total seconds since the GPS epoch (float).
     """
-# Just a dumb wrapper for sp3_interpolator for now
-    idx = int((sec - poslist[0].epoch + 450) // 900)
-# We are assuming 15-minute satellite positions here!
-    tow = [poslist[k].epoch for k in range(idx-3,idx+4)]
-    xyz = [poslist[k][prn] for k in range(idx-3,idx+4)]
-    return np.array(sp3_interpolator(sec, tow, xyz))
+    step = poslist[1].epoch - poslist[0].epoch
+    idx = int((sec - poslist[0].epoch + (step/2)) // step)
+    times = [p.epoch - sec for p in poslist[idx-3:idx+4]]
+    xyz = [p[prn] for p in poslist[idx-3:idx+4]]
+    return [1, 0, 0, 0, 1, 1, 1] @ coeffs(times, xyz)
 
-    
+def mvec(t, n=5):
+    p = 2*pi/86164.090530833*t # 2π/mean sidereal day
+    return [1] + [sin(k*p) for k in range(1, n+1)] + [cos(k*p) for k in range(n,0,-1)]
+
+def coeffs(times, xyz):
+    n = len(times)//2
+    ind = np.array([mvec(t, n) for t in times])
+    return np.linalg.solve(ind, xyz)
+
+def allcoeffs(poslist, prn, n=5):
+    return [coeffs([p.epoch for p in poslist[idx-n:idx+n+1]],
+                   [p[prn] for p in poslist[idx-n:idx+n+1]])
+            for idx in range(n,len(poslist)-n)]
+
+def coef_fn(poslist, prn, n=5, type='linear'):
+    AC = allcoeffs(poslist, prn, n)
+    tint = [p.epoch for p in poslist[n:-n]]
+    return interp1d(tint, AC, type, axis=0, assume_sorted=True)
