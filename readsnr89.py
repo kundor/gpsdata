@@ -141,8 +141,8 @@ def rewrite(odir, ndir, filename=None):
                 if dazi > 180:
                     dazi = abs(dazi - 360)
                 if max(dazi, dele) > 1:
-                    print('Recorded and computed azimuth, elevation differ by '
-                          '{:.4f}, {:.4f} on line {}'.format(dazi, dele, fid.lineno))
+                    print('Recorded and computed elevation, azimuth differ by '
+                          '{:.4f}, {:.4f} on line {}'.format(dele, dazi fid.lineno))
                     print(l)
             newfid.write(formrec(rec.prn, nel, naz, rec.sod, rec.snr))
 
