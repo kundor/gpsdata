@@ -3,7 +3,6 @@ from gpstime import gpsdatetime
 import re
 import numpy as np
 from math import cos, sin, pi
-from scipy.interpolate import interp1d
 
 __all__ = ['readsp3', 'satpos', 'mvec', 'coef_fn']
 
@@ -116,7 +115,19 @@ def allcoeffs(poslist, prn, n=5):
                    [p[prn] for p in poslist[idx-n:idx+n+1]])
             for idx in range(n,len(poslist)-n)]
 
-def coef_fn(poslist, prn, n=5, type='linear'):
+class myinterp:
+    """A linear interpolator, for regularly-spaced data."""
+    def __init__(self, start, step, data):
+        self.start = start
+        self.step = step
+        self.data = data
+
+    def __call__(self, x):
+        idx0 = int((x - self.start) // self.step)
+        t0 = self.start + idx0 * self.step
+        T = (x - t0)/self.step
+        return T*self.data[idx0 + 1] + (1-T)*self.data[idx0]
+
+def coef_fn(poslist, prn, n=5):
     AC = allcoeffs(poslist, prn, n)
-    tint = [p.epoch for p in poslist[n:-n]]
-    return interp1d(tint, AC, type, axis=0, assume_sorted=True)
+    return myinterp(poslist[n].epoch, poslist[n+1].epoch - poslist[n].epoch, AC)
