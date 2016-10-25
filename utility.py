@@ -4,12 +4,49 @@ These are not very specific in usage, however, and could be useful anywhere.
 
 '''
 from contextlib import suppress, redirect_stdout, contextmanager
+import subprocess
 
 @contextmanager
 def stdouttofile(file):
     """A decorator to redirect stdout within a function to the given filename."""
     with open(file, 'a') as f, redirect_stdout(f):
         yield
+
+def decompress(filename, move=False):
+    """Decompress a (Lempel-Ziv) compress'd file.
+    
+    There seems to be no Python module to do this (the gzip module won't handle it,
+    though the gzip program will), so we call an external process.
+    These programs will only decompress if the filename ends with .Z;
+    they remove the original file and output a file without the .Z.
+    """
+# However, given the -c flag, these programs will decompress to stdout, even if the filename
+#  does not end with .Z.
+    if not filename.endswith('.Z'):
+        if move:
+            defile = filename
+            filename = filename + '.Z'
+            os.rename(defile, filename)
+        else:
+            raise ValueError('Given filename ' + filename + ' does not end with .Z.')
+    else:
+        defile = filename[:-2]
+    decompresscmds = [['compress', '-d', filename],
+                      ['uncompress', filename],
+                      ['gunzip', filename],
+                      ['gzip', '-d', filename]]
+    for cmd in decompresscmds:
+        try:
+            subprocess.run(cmd, check = True)
+        except (OSError, subprocess.CalledProcessError):
+            print("Command '", ' '.join(cmd), "' failed. Trying another...")
+            continue
+        if canread(defile):
+            return defile
+        else:
+            print("Command '", ' '.join(cmd), "' succeeded, but did not produce the output file?!")
+    raise RuntimeError('Could not get an external program to decompress the file '
+            + filename)
 
 typedict = {}
 # Declaring classes is really slow, so we reuse them.

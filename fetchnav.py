@@ -1,8 +1,9 @@
 from ftplib import FTP
 from urllib.request import urlretrieve
-from gpstime import getutctime, gpsweek, gpsdow, dhours
 import os
 import subprocess
+from gpstime import getutctime, gpsweek, gpsdow, dhours
+from utility import decompress
 
 sp3dir = '/scratch/sp3'
 
@@ -99,18 +100,7 @@ def ftpfetch(site, dir, file):
     fullpath = 'ftp://' + site + '/' + dir + '/' + file[3:7] + '/' + file + '.Z'
     (filename, headers) = urlretrieve(fullpath, sp3path(file + '.Z'))
 # overwrites any existing file without complaint
-    decompresscmds = [['compress', '-d', filename],
-                      ['gunzip', filename],
-                      ['gzip', '-d', filename]]
-    for cmd in decompresscmds:
-        try:
-            subprocess.run(cmd, check = True)
-        except (OSError, subprocess.CalledProcessError):
-            continue
-        if canread(sp3path(file)):
-            return sp3path(file)
-    raise RuntimeError('Could not get an external program to decompress the file '
-            + filename)
+    return decompress(filename)
 
 def getsp3file(dt = None):
     """Download the appropriate sp3 file for the given time and return filename.
