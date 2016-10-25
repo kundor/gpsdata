@@ -5,6 +5,7 @@ These are not very specific in usage, however, and could be useful anywhere.
 '''
 from contextlib import suppress, redirect_stdout, contextmanager
 import subprocess
+import os
 
 @contextmanager
 def stdouttofile(file):
@@ -41,12 +42,11 @@ def decompress(filename, move=False):
         except (OSError, subprocess.CalledProcessError):
             print("Command '", ' '.join(cmd), "' failed. Trying another...")
             continue
-        if canread(defile):
+        if os.path.isfile(defile):
             return defile
         else:
             print("Command '", ' '.join(cmd), "' succeeded, but did not produce the output file?!")
-    raise RuntimeError('Could not get an external program to decompress the file '
-            + filename)
+    raise RuntimeError('Could not get an external program to decompress the file ' + filename)
 
 typedict = {}
 # Declaring classes is really slow, so we reuse them.
