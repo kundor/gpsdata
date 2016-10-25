@@ -80,8 +80,12 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
             zfile.name = filename
     else:
         zfile = open(filename)
-    if format in ('RINEX', 'CRINEX') or (format is None and
-                                    re.search('\.[0-9]{2}[OoDd]$', zfile.name)):
+    if format is None:
+        if re.search('\.[0-9]{2}[Oo]$', zfile.name):
+            format = 'RINEX'
+        elif re.search('\.[0-9]{2}[Dd]$', zfile.name):
+            format = 'CRINEX'
+    if format in ('RINEX', 'CRINEX'):
         if verbose:
             print('Parsing file in RINEX format.')
         return rinex.get_data(zfile, format == 'CRINEX')
