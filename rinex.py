@@ -15,7 +15,7 @@ a GPSData object.
 # Support other RINEX file types (navigation message, meteorological data, 
 # clock date file).
 
-import itertools
+from itertools import zip_longest, repeat
 from copy import deepcopy
 from warnings import warn
 
@@ -427,7 +427,7 @@ class recordArc(recordLine):
         if line[0] == '&':
             return line.replace('&', ' ')
         else:
-            return ''.join(map(choose, self.line, line))
+            return ''.join(choose(*ab) for ab in zip_longest(self.line, line))
 
     def prnlist(self, fid):
         prnlist = []
@@ -489,12 +489,12 @@ class dataArc(object):
 class charArc(object):
     '''
     LLI and STR records in Compact RINEX only record changes from the previous 
-    record; space indicated no change.
+    record; space indicates no change.
     '''
     def __init__(self):
         self.data = '0'
     def update(self, char):
-        self.data = ''.join(map(choose, self.data, char))
+        self.data = ''.join(choose(*ab) for ab in zip_longest(self.data, char))
     def get(self):
         return toint(self.data)
 
@@ -628,9 +628,9 @@ def get_data(fid, is_crx=None):
     return obsdata
 
 
-def procheader(fid, RINEX, meta, recordnum, numlines=itertools.repeat(0),
+def procheader(fid, RINEX, meta, recordnum, numlines=repeat(0),
                epoch=None):
-    if isinstance(numlines, itertools.repeat) or numlines:
+    if isinstance(numlines, repeat) or numlines:
         meta.numblocks += 1
     for c in numlines:
         try:
