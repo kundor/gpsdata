@@ -98,7 +98,7 @@ def parsetime(s, tight=False, baseyear=None):
         secwidth = 13
     year = toint(s[0 : width])
     if tight and baseyear is not None:
-        year += (int(baseyear)/100)*100
+        year += (int(baseyear)//100)*100
     elif tight and year < 80:
         year += 2000
     elif tight:
@@ -453,7 +453,7 @@ class recordArc(recordLine):
             raise ValueError('Uninitialized clock offset data arc.')
         else:
             return 0.
-        return self.offsetArc.get()/1000000000
+        return self.offsetArc.get()//1000000000
  
 
 class dataArc(object):
