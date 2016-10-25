@@ -21,6 +21,7 @@ from urllib.request import urlretrieve
 import tarfile
 import pickle
 from optparse import OptionParser
+from utility import decompress
 
 from __init__ import __ver__
 import rinex
@@ -41,7 +42,11 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
         if verbose:
             print('Local file', filename, 'used directly.')
     else:
-        (filename, headers) = urlretrieve(URL)
+        try:
+            (filename, headers) = urlretrieve(URL)
+        except ValueError:
+            print(URL + ' does not appear to be a local file, nor a valid URL.')
+            return
         if verbose:
             print(URL, 'downloaded to', filename, '.')
     if untar or (untar is None and tarfile.is_tarfile(filename)):
@@ -58,14 +63,19 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
                 print('Unpacking noncompressed tarfile.')
             zfile = tarfile.open(filename,'r:')  # Force no gunzip
         zfile = zfile.extractfile(zfile.next())
-    elif gunzip or (gunzip is None and filename.lower().endswith(('.gz', '.z'))):
+    elif gunzip == 2 or (gunzip is None and filename.endswith('.Z')):
+        if verbose:
+            print('Uncompressing file.')
+        filename = decompress(filename, True)
+        zfile = open(filename)
+    elif gunzip == 1 or (gunzip is None and filename.lower().endswith(('.gz', '.z'))):
         if verbose:
             print('Gunzipping file.')
         zfile = gzip.open(filename)
-        if filename.lower().rfind('.gz') > 0:
-            zfile.name = filename[:filename.lower().rfind('.gz')]
-        elif filename.lower().rfind('.z') > 0:
-            zfile.name = filename[:filename.lower().rfind('.z')]
+        if filename.lower().endwith('.gz'):
+            zfile.name = filename[:-3]
+        elif filename.lower().endswith('.z'):
+            zfile.name = filename[:-2]
         else:
             zfile.name = filename
     else:
@@ -127,10 +137,12 @@ def main():
                               ' for all  satellites;  display unless -o given')
     else:
         parser.set_defaults(image=None)
-    parser.add_option('-g', '--gunzip', action='store_true',
+    parser.add_option('-g', '--gunzip', action='store_const', const=1, 
               help='Force treatment as gzipped')
-    parser.add_option('-G', '--no-gunzip', action='store_false', dest='gunzip',
-              help='Do not gunzip')
+    parser.add_option('-u', '--uncompress', action='store_const', const=2, dest='gunzip',
+              help="Force treatment as compress'd")
+    parser.add_option('-G', '--no-gunzip', action='store_const', const=0, dest='gunzip',
+              help='Do not gunzip or uncompress')
     parser.add_option('-t', '--tar', action='store_true',
               help='Force treatment as tar file')
     parser.add_option('-T', '--notar', action='store_false', dest='tar',
