@@ -17,9 +17,9 @@ import re
 import sys
 import gzip
 import time
-import urllib
+from urllib.request import urlretrieve
 import tarfile
-import cPickle as pickle
+import pickle
 from optparse import OptionParser
 
 from __init__ import __ver__
@@ -36,30 +36,29 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
     tar archives.  Then simplistic extension-based format detection is used,
     unless the argument `format' is supplied.
     '''
-    (filename, headers) = urllib.urlretrieve(URL)  # does nothing if local file
-    if verbose:
-        if filename != URL:
-            print(URL, 'downloaded to', filename, '.')
-        else:
+    if os.path.isfile(URL):
+        filename = URL
+        if verbose:
             print('Local file', filename, 'used directly.')
+    else:
+        (filename, headers) = urlretrieve(URL)
+        if verbose:
+            print(URL, 'downloaded to', filename, '.')
     if untar or (untar is None and tarfile.is_tarfile(filename)):
         if gunzip:
             if verbose:
                 print('Unpacking gzipped tarfile.')
             zfile = tarfile.open(filename,'r:gz')
-            zfile = zfile.extractfile(zfile.next())
         elif gunzip is None:
             if verbose:
                 print('Unpacking tarfile.')
             zfile = tarfile.open(filename)  # Automatically handles tar.gz,bz2
-            zfile = zfile.extractfile(zfile.next())
         else:
             if verbose:
                 print('Unpacking noncompressed tarfile.')
             zfile = tarfile.open(filename,'r:')  # Force no gunzip
-            zfile = zfile.extractfile(zfile.next())
-    elif gunzip or gunzip is None and (filename.lower().endswith('.gz')
-            or filename.lower().endswith('.z')):
+        zfile = zfile.extractfile(zfile.next())
+    elif gunzip or (gunzip is None and filename.lower().endswith(('.gz', '.z'))):
         if verbose:
             print('Gunzipping file.')
         zfile = gzip.open(filename)

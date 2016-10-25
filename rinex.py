@@ -17,7 +17,6 @@ a GPSData object.
 
 import itertools
 from copy import deepcopy
-from string import strip
 from warnings import warn
 
 from utility import fileread, listvalue, value
@@ -231,7 +230,7 @@ class header(object):
         Describes a value in a RINEX header: variable name, position in the
         line, and how to interpret it.
         '''
-        def __init__(self, name, start, stop, convert=strip):
+        def __init__(self, name, start, stop, convert=str.strip):
             self.name = name
             self.start = start
             self.stop = stop
