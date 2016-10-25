@@ -6,7 +6,8 @@ from utility import fileread, stdouttofile
 from gpsazel import gpsazel, poslist, satcoeffs
 from gpstime import gpsweek, gpsdow, gpsleapsecsutc
 
-sitelocs = { 'vpr3' : (-1283634.1275, -4726427.8944, 4074798.0304) } # actually p041's location
+sitelocs = { 'vpr3' : (-1283649.0796, -4726431.0920, 4074789.6026),
+             'p041' : (-1283634.1275, -4726427.8944, 4074798.0304) }
 
 vdir = '/bowie/data/vapr/Marshall'
 ndir = '/bowie/data/vapr-azel'
@@ -16,7 +17,7 @@ Record = namedtuple('Record', ['prn', 'el', 'az', 'sod', 'snr'])
 
 def rngcheck(word, name, mn, mx, length, line):
     val = int(word)
-    if val < mn or val > mx or len(word) != length:
+    if val < mn or val > mx or (val and len(word) != length):
         raise ValueError(word + ' is not a valid ' + name + ' (in line "' + line + '")')
     return val
 
@@ -26,12 +27,18 @@ def fltcheck(word, name, mn, mx, line):
         raise ValueError(word + ' is not a valid ' + name + ' (in line "' + line + '")')
     return val
 
-def parserec(line):
+def parserec(line, floatazel = False):
     words = line.split()
     if len(words) != 7:
         raise ValueError(line + ' is not a valid snr89 record')
     rngcheck(words[4], 'zero', 0, 0, 1, line)
     rngcheck(words[5], 'zero', 0, 0, 1, line)
+    if floatazel:
+        return Record(rngcheck(words[0], 'PRN', 1, 32, 2, line),
+                      fltcheck(words[1], 'elevation', 0, 90, line),
+                      fltcheck(words[2], 'azimuth', 0, 360, line),
+                      fltcheck(words[3], 'second of day', 0, 86400, line),
+                      fltcheck(words[6], 'SNR', 0, 100, line))
     return Record(rngcheck(words[0], 'PRN', 1, 32, 2, line),
                   rngcheck(words[1], 'elevation', 0, 90, 2, line),
                   rngcheck(words[2], 'azimuth', 0, 359, 3, line),
@@ -64,7 +71,7 @@ class snr89(UserList):
     The el (elevation) and az (azimuth) fields are as found in the file,
     and may be 0 or truncated to integers.
     """
-    def __init__(self, dir, filename=None):
+    def __init__(self, dir, filename=None, floatazel = False):
         UserList.__init__(self)
         if filename is None:
             if not canread(dir):
@@ -82,9 +89,9 @@ class snr89(UserList):
         with fileread(os.path.join(dir, filename)) as fid:
             for l in fid:
                 try:
-                    self.append(parserec(l))
+                    self.append(parserec(l, floatazel))
                 except ValueError as e:
-                    print(e)
+                    print(e, end=' on line ' + str(fid.lineno) + '\n')
 
     def getazel(self, index):
         """Compute azimuth and elevation for the given record."""
@@ -102,7 +109,7 @@ def _todatetime(year, doy, sod):
     return datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(days = doy - 1) + timedelta(seconds = sod)
 
 @stdouttofile(log)
-def rewrite(odir, ndir, filename=None):
+def rewrite(odir, ndir=ndir, filename=None):
     print('--------------------')
     if filename is None:
         if not canread(odir):
@@ -125,6 +132,8 @@ def rewrite(odir, ndir, filename=None):
     pl = poslist(week, sow0, sow0 + 60*60*24)
     cofns = satcoeffs(pl)
     os.makedirs(ndir, exist_ok = True)
+    err = 0
+    dif = 0
     with fileread(os.path.join(odir, filename)) as fid, open(os.path.join(ndir, filename), 'wt') as newfid:
         for l in fid:
             try:
@@ -132,6 +141,7 @@ def rewrite(odir, ndir, filename=None):
             except ValueError as e:
                 print(e)
                 print('   (on line ' + str(fid.lineno) + ')')
+                err += 1
                 continue
             naz, nel = gpsazel(rxloc, rec.prn, week, sow0 + rec.sod, cofns, pl)
             if rec.el != 0 or rec.az != 0:
@@ -144,9 +154,11 @@ def rewrite(odir, ndir, filename=None):
                     print('Recorded and computed elevation, azimuth differ by '
                           '{:.4f}, {:.4f} on line {}'.format(dele, dazi, fid.lineno))
                     print(l)
+                    dif += 1
             newfid.write(formrec(rec.prn, nel, naz, rec.sod, rec.snr))
+    print('Total errors ' + str(err) + ', Large differences ' + str(dif))
 
-def rewriteall(odir, ndir):
+def rewriteall(odir=vdir, ndir=ndir):
     import glob
     files = glob.glob(os.path.join(odir, '*.snr89'))
     for path in files:
