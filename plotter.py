@@ -34,7 +34,7 @@ def colorplot(ax, X, Y, C, label=None, numlabs=4):
     label, if defined, is text to be periodically placed on the line.
     '''
     # That means normalizing to 0-1 and using matplotlib.colors.Colormap
-    if isinstance(C[0], (float, int, long)):
+    if isinstance(C[0], (float, int)):
         nm = Normalize(min(C), max(C))
         C = cmap(nm(C))
     # TODO : keep nm for all instances, so all lines are colored equivalently

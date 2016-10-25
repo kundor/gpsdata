@@ -67,7 +67,7 @@ class record(dict):
         '''
         if index == 'epoch':
             return self.epoch
-        if isinstance(index, (int, long, float)):
+        if isinstance(index, (int, float)):
             return dict.__getitem__(self, 'G%02d' % index)
         return dict.__getitem__(self, index)
 
@@ -75,7 +75,7 @@ class record(dict):
         '''
         Allow containment tests (eg if 13 in record:) for abbreviated GPS PRNs.
         '''
-        if isinstance(index, (int, long, float)):
+        if isinstance(index, (int, float)):
             return dict.__contains__(self, 'G%02d' % index)
         return dict.__contains__(self, index)
 
