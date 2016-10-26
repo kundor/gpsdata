@@ -86,20 +86,13 @@ class snr89(UserList):
         except KeyError:
             print('First four characters of filename, ' + self.site
                   + ', are not a recognized site name. Receiver location unknown.')
-        maxsod = 0.
         with fileread(os.path.join(dir, filename)) as fid:
             for l in fid:
                 try:
-                    rec = parserec(l, floatazel)
+                    self.append(parserec(l, floatazel))
                 except ValueError as e:
                     print(e, end=' on line ' + str(fid.lineno) + '\n')
-                    continue
-                if rec.sod >= maxsod:
-                    maxsod = rec.sod
-                    self.append(rec)
-                else:
-                    ind = next(i for i in range(len(self)) if self[i].sod > rec.sod)
-                    self.insert(ind, rec)
+        self.sort(key=lambda x : x.sod)
 
     def getazel(self, index):
         """Compute azimuth and elevation for the given record."""
