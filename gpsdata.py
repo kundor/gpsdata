@@ -25,7 +25,6 @@ import warnings
 from datetime import datetime, timedelta
 from textwrap import wrap
 from warnings import warn
-from operator import add
 
 from utility import listvalue, metadict
 from gpstime import leapseconds, gpsdatetime, gpstz, utctz, taitz
@@ -53,8 +52,7 @@ class record(dict):
     of dictionaries (by RINEX observation code, e.g. C1, L2) of values.
     Can access as record.epoch, record[13], record['G17'], or iteration.
     '''
-    def __init__(self, epoch=gpsdatetime(), motion=False, powerfail=False,
-                 clockoffset=0.):
+    def __init__(self, epoch=gpsdatetime(), motion=False, powerfail=False, clockoffset=0.):
         self.epoch = epoch
         self.motion = motion
         self.powerfail = powerfail
@@ -181,6 +179,17 @@ class GPSData(list):
         # a dictionary by PRN of (start, stop) indices delimiting 
         # phase-connected arcs
 
+    def __str__(self):
+        ss = 'GPSData object'
+        if 'filename' in self.meta:
+            ss += ' read from file ' + self.meta.filename
+        ss += ' with observations ' + ', '.join(self.allobs)
+        ss += ' from satellites ' + ', '.join(self.prns) + '.'
+        ss += '{} records, from {} to {}.'.format(len(self), self.meta.firsttime, self.meta.endtime)
+        return ss
+
+    __repr__ = object.__repr__ # don't accidentally print out reams of stuff
+
     def newrecord(self, *args, **kwargs):
         '''
         Append a new record with given args to the GPSData list,
@@ -261,8 +270,7 @@ class GPSData(list):
             if bad < 100 and self.phasearcs[prn][-1][1] is not None:
                 self.phasearcs[prn] += [[len(self) - 1, None]]
                 continue
-            if prn not in self.phasearcs or self.phasearcs[prn][-1][1] is not \
-                    None:
+            if prn not in self.phasearcs or self.phasearcs[prn][-1][1] is not None:
                  continue  # It's bad, but nothing to break
             if bad > 100:
                 # This satellite missed an observation! Must be slip!
@@ -279,9 +287,9 @@ class GPSData(list):
                     # print 'whoa cycle slippage', prn, which, slip
                     self.breakphase(prn)
             elif (prn in self.phasearcs and
-                    self.phasearcs[prn][0] < len(self) - 1 and
-                    self.phasearcs[prn][1] is None):
-                self.phasearcs[prn][1] = len(self) - 2
+                    self.phasearcs[prn][-1][0] < len(self) - 1 and
+                    self.phasearcs[prn][-1][1] is None):
+                self.phasearcs[prn][-1][1] = len(self) - 2
             # try:
             #     idx = max([k for k in xrange(len(self.phasearcs[prn])) if
             #               self.phasearcs[prn][k][0] <= which])
@@ -301,8 +309,8 @@ class GPSData(list):
                 continue
             if arclist[-1][1] is None:
                 arclist[-1][1] = len(self)
-            self.phasearcs[prn] = arclist = filter(ordercheck(len(self)),
-                                                   arclist)
+            self.phasearcs[prn] = arclist = list(filter(ordercheck(len(self)),
+                                                   arclist))
             poplist = []  # indices to remove
             for k, arc in enumerate(arclist):
                 good = True
@@ -331,10 +339,11 @@ class GPSData(list):
         '''
         Returns an iterator over the list of records.
 
-        If a PRN is specified for `sat', iterates over dictionaries of 
-        obscode : value for the given satellite.
+        If a PRN is specified for `sat', iterates over lists of values for
+        the given satellite, corresponding the obsversation codes in "allobs".
         If an observation code is specified for `obscode', iterates over
-        dictionaries of prn : value for the given observation type.
+        lists of values for the given observation type, corresponding to the
+        satellites in "prns".
         If both are specified, iterates over values.
         '''
         if isinstance(sat, (list, tuple, set, dict)):
@@ -394,16 +403,16 @@ class GPSData(list):
             if not sat:
                 sat = None
             elif len(sat) == 1:
-                sat = sat[0]
-            elif isinstance(sat, (tuple, set, dict)):
-                sat = [s for s in sat]
+                sat = next(iter(sat))
+            elif isinstance(sat, (list, tuple, dict)):
+                sat = set(sat)
         if isinstance(obscode, (list, tuple, set, dict)):
             if not obscode:
                 obscode = None
             elif len(obscode) == 1:
-                obscode = obscode[0]
-            elif isinstance(obscode, (tuple, set, dict)):
-                obscode = [o for o in obscode]
+                obscode = next(iter(obscode))
+            elif isinstance(obscode, (list, tuple, dict)):
+                obscode = set(obscode)
         
         def epochchoose(rec, sat, obs, spec='epoch'):
             if obs != spec:
@@ -413,30 +422,31 @@ class GPSData(list):
         for record in self:
             if obscode is None and sat is None:
                yield record 
-            elif obscode is None and isinstance(sat, list):
-                yield dict([(s, record[s]) for s in sat if s in record])
+            elif obscode is None and isinstance(sat, set):
+                yield {s : record[s] for s in sat if s in record}
             elif obscode is None and sat in record:
                 yield record[sat]
-            elif isinstance(obscode, list) and sat is None:
-                yield dict([(prn, dict([(obs, val[obs]) for obs in obscode 
-                      if obs in val])) for prn, val in record.items()])
-            elif isinstance(obscode, list) and isinstance(sat, list):
-                yield dict([(s, dict([(obs, record[s][obs]) for obs in obscode 
-                      if obs in record[s]])) for s in sat if s in record])
-            elif isinstance(obscode, list) and sat in record:
-                yield dict([(obs, epochchoose(record, sat, obs)) for obs in
-                              obscode if obs == 'epoch' or obs in record[sat]])
+            elif isinstance(obscode, set) and sat is None:
+                yield {s : {obs : epochchoose(record, s, obs)
+                       for obs in obscode if obs == 'epoch' or obs in record[s]}
+                                for s in record if obscode.intersection(record[s])}
+            elif isinstance(obscode, set) and isinstance(sat, set):
+                yield {s : {obs : epochchoose(record, s, obs)
+                       for obs in obscode if obs == 'epoch' or obs in record[s]}
+                                                     for s in sat if s in record}
+            elif isinstance(obscode, set) and sat in record:
+                yield {obs : epochchoose(record, sat, obs) for obs in obscode
+                                       if obs == 'epoch' or obs in record[sat]}
             elif obscode == 'epoch':
-                yield record['epoch']
+                yield record.epoch
             elif sat is None:
-                d = dict([(prn, val[obscode]) for prn, val in 
-                    record.items() if obscode in val])
-                if len(d):
+                d = {prn : val[obscode] for prn, val in record.items() if obscode in val}
+                if d:
                     yield d
-            elif isinstance(sat, list):
-                d = dict([(s, record[s][obscode]) for s in sat 
-                          if s in record and obscode in record[s]])
-                if len(d):
+            elif isinstance(sat, set):
+                d = {s : record[s][obscode] for s in sat 
+                          if s in record and obscode in record[s]}
+                if d:
                     yield d
             elif sat in record and obscode in record[sat]:
                 yield record[sat][obscode]
@@ -469,7 +479,7 @@ class GPSData(list):
                 #  - The worst 20% of the values, if their badness > 1
                 targ = (arc[1] - arc[0]) / 5  
                 # we will omit at most `targ' bad measurements
-                leftout = (arc[1] - arc[0]) - reduce(add, arc[3])
+                leftout = (arc[1] - arc[0]) - sum(arc[2])
                 bound = 5  
                 # we can omit records worse than this without exceeding targ
                 while leftout < targ and bound:
@@ -584,10 +594,9 @@ class GPSData(list):
                 if t0 < leap < t1:
                     ind = max([k for k in xrange(len(self)) 
                                                      if self[k].epoch <= leap])
-                    self.meta['leapseconds'][ind] = \
-                                                  gpstz.utcoffset(leap).seconds
+                    self.meta['leapseconds'][ind] = gpstz.utcoffset(leap).seconds
         if 'interval' in self.meta:
-            if self.meta.interval != min(intervals):
+            if min(self.meta.interval.values()) != min(intervals):
                 warn('INTERVAL ' + str(self.meta.interval) + ' does not match '
                      'minimum observation interval ' + str(min(intervals)))
         else:
