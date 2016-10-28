@@ -71,7 +71,7 @@ class snr89(UserList):
     The el (elevation) and az (azimuth) fields are as found in the file,
     and may be 0 or truncated to integers.
     """
-    def __init__(self, dir, filename=None, floatazel = False):
+    def __init__(self, dir, filename=None, floatazel = False, elmin = None):
         UserList.__init__(self)
         if filename is None:
             if not canread(dir):
@@ -89,9 +89,14 @@ class snr89(UserList):
         with fileread(os.path.join(dir, filename)) as fid:
             for l in fid:
                 try:
-                    self.append(parserec(l, floatazel))
+                    rec = parserec(l, floatazel)
                 except ValueError as e:
                     print(e, end=' on line ' + str(fid.lineno) + '\n')
+                    continue
+                if elmin is not None and rec.el < elmin:
+                    continue
+                if rec.snr > 0:
+                    self.append(rec)
         self.sort(key=lambda x : x.sod)
 
     def getazel(self, index):
