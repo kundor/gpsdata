@@ -14,7 +14,7 @@ marker position, times of first and last observations, no. of leap seconds,
 and so forth.
 
 '''
-# TODO: 
+# TODO:
 # Hold auxiliary satellite information such as ephemerides (either almanac,
 # broadcast, or precise) to allow satellite position calculation for each
 # epoch.
@@ -22,9 +22,9 @@ and so forth.
 
 import sys
 import warnings
+from warnings import warn
 from datetime import datetime
 from textwrap import wrap
-from warnings import warn
 
 from utility import listvalue, metadict
 from gpstime import leapseconds, gpsdatetime, gpstz, utctz, taitz
@@ -33,17 +33,17 @@ TECUns = 2.854  # TECU/ns according to GPS-Scinda, Charles Carrano, 4-7-08
 # TECUns = 2.852  # TECU/ns according to TECalc_rinex, Pat Doherty, 2-21-94
 F1 = 1.57542  # L1 Frequency (GHz)
 F2 = 1.22760  # L2 Frequency (GHz)
-c = 0.299792458  # speed of light in meters/nanosecond
+C = 0.299792458  # speed of light in meters/nanosecond
 MINGOOD = 16  # Minimum number of usable records we need to use an arc
 
-def showwarn(message, category, filename, lineno, file=sys.stderr, line=None): 
-    # Output pretty warnings.
+def showwarn(message, category, filename, lineno, file=sys.stderr, line=None):
+    """Output pretty warnings."""
     file.write('\n  * '.join(wrap('*** ' + str(message))) + '\n')
 
 warnings.showwarning = showwarn
 
 
-class record(dict):
+class Record(dict):
     '''
     A record of observations (many satellites, many channels) at a given epoch.
 
@@ -53,6 +53,7 @@ class record(dict):
     Can access as record.epoch, record[13], record['G17'], or iteration.
     '''
     def __init__(self, epoch=gpsdatetime(), motion=False, powerfail=False, clockoffset=0.):
+        dict.__init__(self)
         self.epoch = epoch
         self.motion = motion
         self.powerfail = powerfail
@@ -87,24 +88,24 @@ class record(dict):
         Suffers from integer ambiguity (`constant' offset which changes after
         each cycle slip.)  Should be dealt with in `arcs' between cycle slips.
         '''
-        L1ns = self[prn]['L1']/F1
-        L2ns = self[prn]['L2']/F2
-        return (L1ns - L2ns) * TECUns
+        l1ns = self[prn]['L1']/F1
+        l2ns = self[prn]['L2']/F2
+        return (l1ns - l2ns) * TECUns
 
     def ctec(self, prn):
         '''
         Code (pseudorange) TEC, if observations are available.
-        
+
         p(ns) = p(m) / .3; TEC_C (TECU) = (p2(ns) - p1(ns) - HWCAL) * TECU/ns
         HWCAL is the hardware calibration in ns
         Suffers from satellite bias, receiver bias, multipath and noise.
         '''
         if 'P1' in self[prn] and 'P2' in self[prn]:
-            return (self[prn]['P2'] - self[prn]['P1']) * TECUns/c
+            return (self[prn]['P2'] - self[prn]['P1']) * TECUns/C
         if 'C1' in self[prn] and 'C2' in self[prn]:
-            return (self[prn]['C2'] - self[prn]['C1']) * TECUns/c
+            return (self[prn]['C2'] - self[prn]['C1']) * TECUns/C
         if 'C1' in self[prn] and 'P2' in self[prn]:
-            return (self[prn]['P2'] - self[prn]['C1']) * TECUns/c
+            return (self[prn]['P2'] - self[prn]['C1']) * TECUns/C
 
     def badness(self, prn):
         '''
@@ -136,23 +137,21 @@ class record(dict):
         return bad
         # TODO: Check for 'S1', 'S2' in obs and compare to averages thereof
         # TODO: Get satellite position and increase bad for lower elevations
-        
 
-class ordercheck(object):
-    '''A functor to check if a list of (start, stop) is in strict order.'''
-    def __init__(self, maxlen):
-        '''We check that no index exceeds maxlen.'''
-        self.cur = 0
-        self.maxlen = maxlen
 
-    def __call__(self, arc):
-        '''Return true if ok, false otherwise.'''
+def ordercheck(maxlen):
+    '''Return a function to check if a list of (start, stop) pairs is in strict order.
+
+    Check that no index exceeds maxlen.'''
+    def ochk(arc, cur=[0], maxlen=maxlen):
+        '''Check arc[0] is at or past last seen point, and arc[1] is between arc[0] and maxlen.'''
         if not isinstance(arc[0], int) or not isinstance(arc[1], int):
             return False
-        if not (self.cur <= arc[0] < arc[1] <= self.maxlen):
+        if not cur[0] <= arc[0] < arc[1] <= maxlen:
             return False
-        self.cur = arc[1]
+        cur[0] = arc[1]
         return True
+    return ochk
 
 
 class GPSData(list):
@@ -176,17 +175,19 @@ class GPSData(list):
         '''All observation types seen in this GPSData object.'''
         self.inmotion = False
         self.phasearcs = {}
-        # a dictionary by PRN of (start, stop) indices delimiting 
+        # a dictionary by PRN of (start, stop) indices delimiting
         # phase-connected arcs
 
     def __str__(self):
-        ss = 'GPSData object'
+        out = 'GPSData object'
         if 'filename' in self.meta:
-            ss += ' read from file ' + self.meta.filename
-        ss += ' with observations ' + ', '.join(self.allobs)
-        ss += ' from satellites ' + ', '.join(self.prns) + '.'
-        ss += '{} records, from {} to {}.'.format(len(self), self.meta.firsttime, self.meta.endtime)
-        return ss
+            out += ' read from file ' + self.meta.filename
+        out += ' with observations ' + ', '.join(self.allobs)
+        out += ' from satellites ' + ', '.join(self.prns) + '.'
+        out += '{} records, from {} to {}.'.format(len(self),
+                                                   self.meta.firsttime,
+                                                   self.meta.endtime)
+        return out
 
     __repr__ = object.__repr__ # don't accidentally print out reams of stuff
 
@@ -203,17 +204,17 @@ class GPSData(list):
         else:
             epoch = None
         if isinstance(epoch, gpsdatetime):
-            epoch = epoch.replace(tzinfo = self.tzinfo)
+            epoch = epoch.replace(tzinfo=self.tzinfo)
         elif isinstance(epoch, datetime):
             epoch = gpsdatetime.copydt(epoch, self.tzinfo)
         elif isinstance(epoch, (tuple, list)):
             epoch = gpsdatetime(*epoch).replace(tzinfo=self.tzinfo)
         elif epoch is None:
-            epoch = gpsdatetime(tzinfo = self.tzinfo)
+            epoch = gpsdatetime(tzinfo=self.tzinfo)
         else:
             raise ValueError('First argument must be the gpsdatetime epoch '
                              'of the record.')
-        self.append(record(epoch, self.inmotion, *args, **kwargs))
+        self.append(Record(epoch, self.inmotion, *args, **kwargs))
 
     def add(self, which, prn, obs, val):
         '''
@@ -229,7 +230,7 @@ class GPSData(list):
 
     def endphase(self, prn):
         '''End current phase-connected-arc, if any, for satellite prn.
-        
+
         Ends arc just before the current record.'''
         if prn in self.phasearcs and self.phasearcs[prn][-1][1] is None:
             self.phasearcs[prn][-1][1] = len(self) - 1
@@ -237,20 +238,21 @@ class GPSData(list):
     def breakphase(self, prn):
         '''Begin new phase-connected-arc for satellite prn.'''
         if isinstance(prn, (list, tuple, set, dict)):
-            [self.breakphase(p) for p in prn]
+            for p in prn:
+                self.breakphase(p)
         elif prn not in self.phasearcs:
             self.phasearcs[prn] = [[len(self) - 1, None]]
         else:
             self.endphase(prn)
             self.phasearcs[prn] += [[len(self) - 1, None]]
-    
+
     def checkbreak(self):
         '''Check whether a cycle slip may have occurred for any satellites.
 
         Checks at last record added.  This should be called for each record
         inserted, after all its values have been added.
         '''
-        # TODO: Auto-detect when records have filled all observations for all 
+        # TODO: Auto-detect when records have filled all observations for all
         # prns
         if not self:
             return
@@ -271,13 +273,13 @@ class GPSData(list):
                 self.phasearcs[prn] += [[len(self) - 1, None]]
                 continue
             if prn not in self.phasearcs or self.phasearcs[prn][-1][1] is not None:
-                 continue  # It's bad, but nothing to break
+                continue  # It's bad, but nothing to break
             if bad > 100:
                 # This satellite missed an observation! Must be slip!
                 # print 'whoa imposs', prn, which
                 self.phasearcs[prn][-1][1] = len(self) - 1
                 continue
-            # if `differential carrier phase' ptec changes by more than 8 
+            # if `differential carrier phase' ptec changes by more than 8
             # L2 cycles in 30 seconds (our standard interval), there is almost
             # certainly a cycle slip.  (L2 per TECU is 2.3254, Carrano 08)
             # TODO: scale the boundary for different intervals
@@ -287,8 +289,8 @@ class GPSData(list):
                     # print 'whoa cycle slippage', prn, which, slip
                     self.breakphase(prn)
             elif (prn in self.phasearcs and
-                    self.phasearcs[prn][-1][0] < len(self) - 1 and
-                    self.phasearcs[prn][-1][1] is None):
+                  self.phasearcs[prn][-1][0] < len(self) - 1 and
+                  self.phasearcs[prn][-1][1] is None):
                 self.phasearcs[prn][-1][1] = len(self) - 2
             # try:
             #     idx = max([k for k in range(len(self.phasearcs[prn])) if
@@ -309,8 +311,8 @@ class GPSData(list):
                 continue
             if arclist[-1][1] is None:
                 arclist[-1][1] = len(self)
-            self.phasearcs[prn] = arclist = list(filter(ordercheck(len(self)),
-                                                   arclist))
+            ocheck = ordercheck(len(self))
+            self.phasearcs[prn] = arclist = [a for a in arclist if ocheck(a)]
             poplist = []  # indices to remove
             for k, arc in enumerate(arclist):
                 good = True
@@ -369,6 +371,7 @@ class GPSData(list):
             obscode = sorted(self.allobs)
 
         def chooser(obs, rec, sat, spec=None):
+            """Choose rec[sat][obs], or if it doesn't exist, rec[obs]."""
             if sat in rec and obs in rec[sat]:
                 return rec[sat][obs]
             if spec and obs == spec:
@@ -376,6 +379,7 @@ class GPSData(list):
             return None
 
         def hichoose(sat, rec, obscode):
+            """A list of values for each entry in "obscode" for the single satellite "sat"."""
             if sat in rec:
                 return [chooser(obs, rec, sat) for obs in obscode]
             return None
@@ -396,7 +400,7 @@ class GPSData(list):
         '''
         Returns an iterator over the list of records.
 
-        If a PRN is specified for `sat', iterates over dictionaries of 
+        If a PRN is specified for `sat', iterates over dictionaries of
         obscode : value for the given satellite.
         If an observation code is specified for `obscode', iterates over
         dictionaries of prn : value for the given observation type.
@@ -416,30 +420,31 @@ class GPSData(list):
                 obscode = next(iter(obscode))
             elif isinstance(obscode, (list, tuple, dict)):
                 obscode = set(obscode)
-        
+
         def epochchoose(rec, sat, obs, spec='epoch'):
+            """Choose rec[sat][obs], unless obs matches spec, which must be a field of rec."""
             if obs != spec:
                 return rec[sat][obs]
             return rec[obs]
 
         for record in self:
             if obscode is None and sat is None:
-               yield record 
+                yield record
             elif obscode is None and isinstance(sat, set):
                 yield {s : record[s] for s in sat if s in record}
             elif obscode is None and sat in record:
                 yield record[sat]
             elif isinstance(obscode, set) and sat is None:
                 yield {s : {obs : epochchoose(record, s, obs)
-                       for obs in obscode if obs == 'epoch' or obs in record[s]}
-                                for s in record if obscode.intersection(record[s])}
+                            for obs in obscode if obs == 'epoch' or obs in record[s]}
+                       for s in record if obscode.intersection(record[s])}
             elif isinstance(obscode, set) and isinstance(sat, set):
                 yield {s : {obs : epochchoose(record, s, obs)
-                       for obs in obscode if obs == 'epoch' or obs in record[s]}
-                                                     for s in sat if s in record}
+                            for obs in obscode if obs == 'epoch' or obs in record[s]}
+                       for s in sat if s in record}
             elif isinstance(obscode, set) and sat in record:
                 yield {obs : epochchoose(record, sat, obs) for obs in obscode
-                                       if obs == 'epoch' or obs in record[sat]}
+                       if obs == 'epoch' or obs in record[sat]}
             elif obscode == 'epoch':
                 yield record.epoch
             elif sat is None:
@@ -447,13 +452,13 @@ class GPSData(list):
                 if d:
                     yield d
             elif isinstance(sat, set):
-                d = {s : record[s][obscode] for s in sat 
-                          if s in record and obscode in record[s]}
+                d = {s : record[s][obscode] for s in sat
+                     if s in record and obscode in record[s]}
                 if d:
                     yield d
             elif sat in record and obscode in record[sat]:
                 yield record[sat][obscode]
-            
+
     def obscodes(self, which=-1):
         '''
         Return (current) list of observation codes stored in this GPSData.
@@ -467,9 +472,9 @@ class GPSData(list):
         Calculate slant uncalibrated TEC and append as observation to records
 
         TEC from carrier phase (L1, L2) is smooth but ambiguous.
-        TEC from code (pseudorange) (C1, C2) or encrypted code (P1, P2) is 
+        TEC from code (pseudorange) (C1, C2) or encrypted code (P1, P2) is
         absolute but noisy.  Phase data needs to be fitted to pseudorange data.
-        This function calculates the TEC for each PRN in each record, where 
+        This function calculates the TEC for each PRN in each record, where
         possible.
         '''
         self.sanearcs()
@@ -480,10 +485,10 @@ class GPSData(list):
                 # The average does not include:
                 #  - Any values with badness > 4
                 #  - The worst 20% of the values, if their badness > 1
-                targ = (arc[1] - arc[0]) / 5  
+                targ = (arc[1] - arc[0]) / 5
                 # we will omit at most `targ' bad measurements
                 leftout = (arc[1] - arc[0]) - sum(arc[2])
-                bound = 5  
+                bound = 5
                 # we can omit records worse than this without exceeding targ
                 while leftout < targ and bound:
                     bound -= 1
@@ -595,8 +600,8 @@ class GPSData(list):
                 t1 = self[-1].epoch
             for leap in leapseconds:
                 if t0 < leap < t1:
-                    ind = max([k for k in range(len(self)) 
-                                                     if self[k].epoch <= leap])
+                    ind = max([k for k in range(len(self))
+                               if self[k].epoch <= leap])
                     self.meta['leapseconds'][ind] = gpstz.utcoffset(leap).seconds
         if 'interval' in self.meta:
             if min(self.meta.interval.values()) != min(intervals):
@@ -626,7 +631,7 @@ class GPSData(list):
                 for (c, obs) in enumerate(self.obscodes(0)):
                     if ops[obs] != rns[c]:
                         warn(' '.join(('Header claimed', str(rns[c]), obs,
-                                       'observations for prn', prn, 'but only', 
+                                       'observations for prn', prn, 'but only',
                                        str(ops[obs]), 'observed.')))
         else:
             self.meta['obsnumpersatellite'] = {}
@@ -666,7 +671,7 @@ class GPSData(list):
         if len(self.meta.leapseconds) > 1:
             hstr += '\nLeap seconds:'
             for recnum, ls in self.meta.leapseconds.items():
-                if (recnum):
+                if recnum:
                     hstr += str(recnum) + ')'
                 hstr += '\n\t' + str(ls) + '\t(records ' + str(recnum) + ' -- '
             hstr += str(len(self)) + ')'
