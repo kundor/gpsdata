@@ -114,7 +114,7 @@ def parsetime(s, tight=False, baseyear=None):
     return gpsdatetime(year, month, day, hour, minute, int(second), usec, None)
 
 
-class wavelength:
+def wavelength(line, *, waveinfo={'G%02d' % prn : (1, 1) for prn in range(1, 33)}):
     '''
     Parse RINEX WAVELENGTH FACT L1/2 headers
 
@@ -123,28 +123,23 @@ class wavelength:
     either globally or for particular satellites.
     This is only valid for GPS satellites on frequencies L1 or L2.
     '''
+    # "waveinfo" is a persistent store of current ambiguities,
+    # which is updated with each new header line. (it should not be passed)
     # If prn list is empty (numsats = 0), L1/2 ambiguity applies to all
     # satellites.  Otherwise, it applies to satellites given in the prnlist;
     # continuation lines are allowed.
     # Ambiguity information is valid until the next 'global' WAVELENGTH FACT,
     # or until that prn is reset.
-    def __init__(self):
-        '''Set all satellites to default wavelength ambiguity, 1.'''
-        self.waveinfo = {'G%02d' % prn : (1, 1) for prn in range(1, 33)}
-
-    def __call__(self, s):
-        '''Update wavelength ambiguities with information from a new header.'''
-        l1amb = toint(s[0:6])
-        l2amb = toint(s[6:12])
-        numsats = toint(s[12:18])
-        if not numsats:  # This is a `global' line
-            self.waveinfo = {'G%02d' % prn : (l1amb, l2amb)
-                             for prn in range(1, 33)}
-        else:
-            for p in range(numsats):
-                prn = btog(s[21 + 6 * p]) + '%02d' % toint(s[22 + 6 * p : 24 + 6 * p])
-                self.waveinfo[prn] = (l1amb, l2amb)
-        return self.waveinfo.copy()
+    l1amb = toint(line[0:6])
+    l2amb = toint(line[6:12])
+    numsats = toint(line[12:18])
+    if not numsats:  # This is a `global' line
+        waveinfo.update(dict.fromkeys(waveinfo, (l1amb, l2amb)))
+    else:
+        for p in range(numsats):
+            prn = btog(line[21 + 6 * p]) + '%02d' % toint(line[22 + 6 * p : 24 + 6 * p])
+            waveinfo[prn] = (l1amb, l2amb)
+    return waveinfo.copy()
 
 
 class obscode:
@@ -614,8 +609,7 @@ def get_data(fid, is_crx=None):
     return obsdata
 
 
-def procheader(fid, RINEX, meta, recordnum, numlines=repeat(0),
-               epoch=None):
+def procheader(fid, RINEX, meta, recordnum, numlines=repeat(0), epoch=None):
     if isinstance(numlines, repeat) or numlines:
         meta.numblocks += 1
     for _ in numlines:
