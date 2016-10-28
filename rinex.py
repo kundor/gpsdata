@@ -6,21 +6,22 @@ Mostly you will use readfile.read_file(URL), where URL can be an http, ftp, or
 local file path to a gzipped, compact, or standard RINEX observation file.
 A GPSData object is returned.
 This module has functions specific to processing RINEX.
-Most notably, get_data(file) turns a standard RINEX file into 
+Most notably, get_data(file) turns a standard RINEX file into
 a GPSData object.
 
 '''
 # TODO:
 # Confirm reading Rinex versions 2.0-2.09; read RINEX 3 / CRINEX 3;
-# Support other RINEX file types (navigation message, meteorological data, 
+# Support other RINEX file types (navigation message, meteorological data,
 # clock date file).
 
 from itertools import zip_longest, repeat
 from copy import deepcopy
 from warnings import warn
+from collections import namedtuple
 
 from utility import fileread, listvalue, value
-from gpstime import gpsdatetime, gpstz, utctz, taitz
+from gpstime import gpsdatetime
 from gpsdata import GPSData
 
 RNX_VER = '2.11'
@@ -47,7 +48,7 @@ def tofloat(x):
         return 0.
     return float(x)
 
-to3float = lambda s : tuple(tofloat(s[k*14:(k+1)*14]) for k in (0,1,2))
+to3float = lambda s : tuple(tofloat(s[k*14:(k+1)*14]) for k in (0, 1, 2))
 
 def delta2float(x):
     return x.days * 86400. + float(x.seconds) + x.microseconds / 1e9
@@ -112,7 +113,7 @@ def parsetime(s, tight=False, baseyear=None):
     return gpsdatetime(year, month, day, hour, minute, int(second), usec, None)
 
 
-class wavelength(object):
+class wavelength:
     '''
     Parse RINEX WAVELENGTH FACT L1/2 headers
 
@@ -128,25 +129,24 @@ class wavelength(object):
     # or until that prn is reset.
     def __init__(self):
         '''Set all satellites to default wavelength ambiguity, 1.'''
-        self.waveinfo = dict([('G%02d' % prn, (1, 1)) for prn in range(1, 33)]) 
-    
+        self.waveinfo = {'G%02d' % prn : (1, 1) for prn in range(1, 33)}
+
     def __call__(self, s):
         '''Update wavelength ambiguities with information from a new header.'''
         l1amb = toint(s[0:6])
         l2amb = toint(s[6:12])
         numsats = toint(s[12:18])
         if not numsats:  # This is a `global' line
-            self.waveinfo = dict([('G%02d' % prn, (l1amb, l2amb)) 
-                for prn in range(1, 33)]) 
+            self.waveinfo = {'G%02d' % prn : (l1amb, l2amb)
+                             for prn in range(1, 33)}
         else:
             for p in range(numsats):
-                prn = btog(s[21 + 6 * p]) + '%02d' % \
-                                              toint(s[22 + 6 * p : 24 + 6 * p])
+                prn = btog(s[21 + 6 * p]) + '%02d' % toint(s[22 + 6 * p : 24 + 6 * p])
                 self.waveinfo[prn] = (l1amb, l2amb)
         return self.waveinfo.copy()
 
 
-class obscode(object):
+class obscode:
     '''
     Parse RINEX # / TYPES OF OBSERV headers, specifying observation types.
 
@@ -158,7 +158,7 @@ class obscode(object):
     # Continuation lines have blank `numtypes'.
     def __init__(self):
         self.numtypes = None
-    
+
     def __call__(self, s):
         nt = toint(s[0:6])
         if self.numtypes is not None and not nt:  # continuation line
@@ -177,7 +177,7 @@ class obscode(object):
         return self.obstypes[:]
 
 
-class satnumobs(object):
+class satnumobs:
     '''
     Parse RINEX PRN / # OF OBS headers.
 
@@ -192,7 +192,7 @@ class satnumobs(object):
     def __init__(self):
         self.sno = {}
         self.prn = None
-    
+
     def __call__(self, s):
         '''Return a dictionary, by satellite PRN code, of observation counts.
 
@@ -219,33 +219,15 @@ class satnumobs(object):
         return self.sno
 
 
-class header(object):
+class header:
     '''
     For each RINEX header type, this holds a list of field objects
     which are defined in the associated line.
     This is for header values which should only occur once.
     '''
-    class field(object):
-        '''
-        Describes a value in a RINEX header: variable name, position in the
-        line, and how to interpret it.
-        '''
-        def __init__(self, name, start, stop, convert=str.strip):
-            self.name = name
-            self.start = start
-            self.stop = stop
-            self.convert = convert
-        
-        def read(self, line):
-            return value(self.convert(line[self.start:self.stop]))
-
-        def __deepcopy__(self, memo={}):
-            '''Fix deepcopying in Python 2.4.'''
-            newfield = self.__class__(deepcopy(self.name, memo), 
-                              deepcopy(self.start, memo),
-                              deepcopy(self.stop, memo), self.convert)
-            memo[id(self)] = newfield
-            return newfield
+    field = namedtuple('field', ('name', 'start', 'stop', 'convert'))
+    '''A value in a RINEX header: variable name, position in the line, and how to interpret it.'''
+    field.__new__.__defaults__ = (str.strip,) # default "convert" function
 
     def __init__(self, field_args, multi_act=0):
         self.mems = [header.field(*fargs) for fargs in field_args]
@@ -255,6 +237,10 @@ class header(object):
         # 0 : replace and warn
         # 1 : disallow
         # 2 : replace
+
+    @staticmethod
+    def _fread(field, line):
+        return value(field.convert(line[field.start:field.stop]))
 
     def read(self, meta, line, recordnum, lineno, epoch=None):
         label = line[60:]
@@ -271,7 +257,7 @@ class header(object):
         else:
             self.seen = recordnum
         for field in self.mems:
-            meta[field.name] = field.read(line)
+            meta[field.name] = self._fread(field, line)
             meta[field.name].recordnum = recordnum
             meta[field.name].lineno = lineno
             if epoch is not None:
@@ -300,7 +286,7 @@ class listheader(header):
 class listonce(header):
     '''
     For header values which can only have one value at a time
-    
+
     The value may change for different observation records.
     If multiple instances are at the same record number, the last is used.
     They are accessed by record number; whichever value is valid for that
@@ -319,50 +305,48 @@ class listonce(header):
 
 RINEX = {
     'CRINEX VERS   / TYPE' : header((('crnxver', 0, 3, crxcheck),
-                              ('is_crx', 0, 0, truth))),
+                                     ('is_crx', 0, 0, truth))),
     'CRINEX PROG / DATE  ' : header((('crnxprog', 0, 20),
-                              ('crxdate', 40, 60),
-                              ('is_crx', 0, 0, truth))),
+                                     ('crxdate', 40, 60),
+                                     ('is_crx', 0, 0, truth))),
     'RINEX VERSION / TYPE' : header((('rnxver', 0, 9, versioncheck),
-                              ('filetype', 20, 21, iso),
-                              ('satsystem', 40, 41, btog))),
-    'PGM / RUN BY / DATE ' : header((('rnxprog', 0, 20), 
-                              ('agency', 20, 40),
-                              ('filedate', 40, 60))),
+                                     ('filetype', 20, 21, iso),
+                                     ('satsystem', 40, 41, btog))),
+    'PGM / RUN BY / DATE ' : header((('rnxprog', 0, 20),
+                                     ('agency', 20, 40),
+                                     ('filedate', 40, 60))),
     'COMMENT             ' : listheader((('comment', 0, 60),)),
-    'MARKER NAME         ' : listonce((('marker', 0, 60),)), 
+    'MARKER NAME         ' : listonce((('marker', 0, 60),)),
     # MARKER is a station, or receiving site.
     'MARKER NUMBER       ' : listonce((('markernum', 0, 20),)),
-    'APPROX POSITION XYZ ' : listonce((('markerpos', 0, 42, to3float),)), 
+    'APPROX POSITION XYZ ' : listonce((('markerpos', 0, 42, to3float),)),
     # Position is in WGS84 frame.
-    'OBSERVER / AGENCY   ' : header((('observer', 0, 20), 
-                              ('obsagency', 20, 60))),
+    'OBSERVER / AGENCY   ' : header((('observer', 0, 20),
+                                     ('obsagency', 20, 60))),
     'REC # / TYPE / VERS ' : header((('receivernum', 0, 20),
-                              ('receivertype', 20, 40),
-                              ('receiverver', 40, 60))),
+                                     ('receivertype', 20, 40),
+                                     ('receiverver', 40, 60))),
     'ANT # / TYPE        ' : listonce((('antennanum', 0, 20),
-                              ('antennatype', 20, 40))),
+                                       ('antennatype', 20, 40))),
     'ANTENNA: DELTA H/E/N' : listonce((('antennashift', 0, 42, to3float),)),
     # Up, East, North shift (meters) from marker position
     'WAVELENGTH FACT L1/2' : listonce((('ambiguity', 0, 53, wavelength()),)),
     '# / TYPES OF OBSERV ' : listonce((('obscodes', 0, 60, obscode()),)),
     'INTERVAL            ' : listonce((('interval', 0, 10, tofloat),)),
     'TIME OF FIRST OBS   ' : header((('firsttime', 0, 43, parsetime),
-                              ('firsttimesys', 48, 51)), 1),
+                                     ('firsttimesys', 48, 51)), 1),
     'TIME OF LAST OBS    ' : header((('endtime', 0, 43, parsetime),
-                              ('endtimesys', 48, 51))),
+                                     ('endtimesys', 48, 51))),
     # End timesys must agree with first timesys.
-    'RCV CLOCK OFFS APPL ' :
-                      listonce((('receiverclockcorrection', 0, 6, toint),)),
+    'RCV CLOCK OFFS APPL ' : listonce((('receiverclockcorrection', 0, 6, toint),)),
     'LEAP SECONDS        ' : listonce((('leapseconds', 0, 6, toint),)),
     '# OF SATELLITES     ' : header((('numsatellites', 0, 6, toint),)),
-    'PRN / # OF OBS      ' : 
-                      header((('obsnumpersatellite', 3, 60, satnumobs()),), 2),
+    'PRN / # OF OBS      ' : header((('obsnumpersatellite', 3, 60, satnumobs()),), 2),
 #    'END OF HEADER       ' : header((), 1)
 }
 
 
-class recordLine(object):
+class recordLine:
     '''Parse record headers (epoch lines) in standard RINEX:
     Combine continuation lines if necessary.'''
     def __init__(self, baseyear):
@@ -454,9 +438,9 @@ class recordArc(recordLine):
         else:
             return 0.
         return self.offsetArc.get()//1000000000
- 
 
-class dataArc(object):
+
+class dataArc:
     '''
     Numeric records in Compact RINEX are Nth-order differences
     from previous records.
@@ -486,9 +470,9 @@ class dataArc(object):
             return 0
 
 
-class charArc(object):
+class charArc:
     '''
-    LLI and STR records in Compact RINEX only record changes from the previous 
+    LLI and STR records in Compact RINEX only record changes from the previous
     record; space indicates no change.
     '''
     def __init__(self):
@@ -499,7 +483,7 @@ class charArc(object):
         return toint(self.data)
 
 
-class obsLine(object):
+class obsLine:
     '''
     Read observations out of line(s) in a record in a standard RINEX file.
     '''
@@ -522,7 +506,7 @@ class obsLine(object):
         return self
 
 
-class obsArcs(object):
+class obsArcs:
     '''
     Calculate observations out of a line in a record in a compact RINEX file.
     '''
@@ -556,7 +540,7 @@ class obsArcs(object):
 
 def get_data(fid, is_crx=None):
     '''Read data out of a RINEX 2.11 Observation Data File.'''
-    obsdata = GPSData() 
+    obsdata = GPSData()
     obspersat = {}
     rinex = deepcopy(RINEX)  # avoid `seen' records polluting other instances
     if hasattr(fid, 'name'):
@@ -589,14 +573,14 @@ def get_data(fid, is_crx=None):
             [fid.next() for ll in range(record.numrec)]  # ignore records
         elif record.flag == 5:
             procheader(fid, rinex, obsdata.meta, len(obsdata),
-                       xrange(record.numrec), record.epoch)
+                       range(record.numrec), record.epoch)
         elif record.flag == 4:
             procheader(fid, rinex, obsdata.meta, len(obsdata),
-                       xrange(record.numrec))
+                       range(record.numrec))
         elif 2 <= record.flag <= 3:
             obsdata.inmotion = record.flag == 2
             procheader(fid, rinex, obsdata.meta, len(obsdata),
-                       xrange(record.numrec))
+                       range(record.numrec))
         elif 0 <= record.flag <= 1:
             obsdata.newrecord(record.epoch, bool(record.flag), record.offset(fid))
             for prn in record.prnlist(fid):
@@ -610,7 +594,7 @@ def get_data(fid, is_crx=None):
                         val.wavefactor = 0
                     else:
                         if 'ambiguity' not in obsdata.meta:
-                            ambig = 1 
+                            ambig = 1
                         else:
                             ambig = obsdata.meta['ambiguity'][-1][prn][freq - 1]
                         if (LLI >> 1) % 2:
@@ -633,7 +617,7 @@ def procheader(fid, RINEX, meta, recordnum, numlines=repeat(0),
                epoch=None):
     if isinstance(numlines, repeat) or numlines:
         meta.numblocks += 1
-    for c in numlines:
+    for _ in numlines:
         try:
             line = fid.next().ljust(80)  # pad spaces to 80
         except StopIteration:
@@ -644,8 +628,8 @@ def procheader(fid, RINEX, meta, recordnum, numlines=repeat(0),
         elif label not in RINEX:
             for lbl in RINEX:
                 if label.replace(' ', '') == lbl.replace(' ', ''):
-                    warn('Label ' + label + ' recognized as ' + lbl + 
-                            ' despite incorrect whitespace.')
+                    warn('Label ' + label + ' recognized as ' + lbl +
+                         ' despite incorrect whitespace.')
                     label = lbl
                     break
         if label in RINEX:
