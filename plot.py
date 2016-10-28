@@ -1,7 +1,7 @@
+from math import floor, ceil
+import numpy as np
 import matplotlib as mp
 from matplotlib import pyplot as plt
-import numpy as np
-from math import floor, ceil
 
 def posneg(arr):
     """Check that input consists of some positive entries followed by negative entries,
@@ -15,7 +15,7 @@ def posneg(arr):
             ind = i
             neg = True
     return ind
-    
+
 def dorises(snrdata, prn):
     _, el, az, sod, snr = zip(*(r for r in snrdata if r.prn == prn))
     riz = rises(el, sod)
@@ -26,9 +26,9 @@ def dorises(snrdata, prn):
         plt.xlabel('Elevation')
         plt.ylabel('SNR')
         plt.title('PRN {}, DoY {}, {:02d}:{:02d}--{:02d}:{:02d}, Az {}--{}'.format(
-                   prn, snrdata.doy, int(sod[rb]//3600), int(sod[rb] % 3600)//60,
-                   int(sod[re]//3600), int(sod[re] % 3600)//60,
-                   min(az[rb:re+1]), max(az[rb:re+1])))
+            prn, snrdata.doy, int(sod[rb]//3600), int(sod[rb] % 3600)//60,
+            int(sod[re]//3600), int(sod[re] % 3600)//60,
+            min(az[rb:re+1]), max(az[rb:re+1])))
     plt.tight_layout()
 
 
@@ -41,10 +41,10 @@ def rises(el, sod):
         riz.append([beg+1, beg+peak])
     return riz
 
-def snrVSel(snrdata, prn, secstart = 0, secend = 86400, color = None):
+def snrVSel(snrdata, prn, secstart=0, secend=86400, color=None):
     snr = [r.snr for r in snrdata if r.prn == prn and secstart < r.sod < secend]
     el = [r.el for r in snrdata if r.prn == prn and secstart < r.sod < secend]
-    plt.scatter(el, snr, s = 1, color = color)
+    plt.scatter(el, snr, s=1, color=color)
 #    plt.xlim(min(el), max(el))
 #    plt.xlabel('Elevation')
 #    plt.ylabel('SNR')
@@ -57,21 +57,21 @@ def iterSNRs(SNRs):
             yield rec.az, rec.el, rec.snr
 
 def itergdo(gdo):
-    for r in gdo.iterlist(obscode=('az','el' 'S1')):
+    for r in gdo.iterlist(obscode=('az', 'el', 'S1')):
         for rec in r:
             yield rec
 
-def azelbin(iterfn, dat, scale = 2):
+def azelbin(iterfn, dat, scale=2):
     snravg = np.zeros((360*scale, 90*scale))
     snrnum = np.zeros((360*scale, 90*scale))
     snrstd = np.zeros((360*scale, 90*scale))
-    for az,el,snr in iterfn(dat):
+    for az, el, snr in iterfn(dat):
         azi = floor(az*scale)
         eli = floor(el*scale)
         n = snrnum[azi, eli]
-        snravg[azi,eli] = n/(n+1)*snravg[azi,eli] + 1/(n+1)*snr
-        snrnum[azi,eli] += 1
-    for az,el,snr in iterfn(dat):
+        snravg[azi, eli] = n/(n+1)*snravg[azi, eli] + 1/(n+1)*snr
+        snrnum[azi, eli] += 1
+    for az, el, snr in iterfn(dat):
         azi = floor(az*scale)
         eli = floor(el*scale)
         snrstd[azi, eli] += (snr - snravg[azi, eli])**2
@@ -82,11 +82,11 @@ def azelbin(iterfn, dat, scale = 2):
     plotazel(snrstd, 'SNR standard deviation', scale)
     return snravg, snrnum, snrstd
 
-def plotazel(dat, title, scale = 4):
+def plotazel(dat, title, scale=2):
     plt.figure()
-    vmin = np.percentile(dat.compressed(),1)
+    vmin = np.percentile(dat.compressed(), 1)
     vmin = max(floor(vmin), np.min(dat))
-    vmax = np.percentile(dat.compressed(),99)
+    vmax = np.percentile(dat.compressed(), 99)
     vmax = min(ceil(vmax), np.max(dat))
     plt.pcolormesh(dat.T, vmin=vmin, vmax=vmax)
     axx = plt.gca()
@@ -101,6 +101,6 @@ def plotazel(dat, title, scale = 4):
     plt.xlabel('Azimuth')
     plt.ylabel('Elevation')
     axc = plt.axes([box.x0 + box.width * 1.05, box.y0, 0.01, box.height])
-    plt.colorbar(cax = axc)
+    plt.colorbar(cax=axc)
 
 

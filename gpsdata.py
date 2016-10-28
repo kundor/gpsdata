@@ -143,7 +143,8 @@ def ordercheck(maxlen):
     '''Return a function to check if a list of (start, stop) pairs is in strict order.
 
     Check that no index exceeds maxlen.'''
-    def ochk(arc, cur=[0], maxlen=maxlen):
+    cur = [0]
+    def ochk(arc):
         '''Check arc[0] is at or past last seen point, and arc[1] is between arc[0] and maxlen.'''
         if not isinstance(arc[0], int) or not isinstance(arc[1], int):
             return False

@@ -1,7 +1,6 @@
 from ftplib import FTP
 from urllib.request import urlretrieve
 import os
-import subprocess
 from gpstime import getutctime, gpsweek, gpsdow, dhours
 from utility import decompress
 
@@ -37,10 +36,10 @@ sp3sites = [
 
 while True:
     try:
-        os.makedirs(sp3dir, exist_ok = True)
+        os.makedirs(sp3dir, exist_ok=True)
     except OSError as e:
         print("The directory to store sp3 files, " + sp3dir + ", is inaccessible "
-                "(occupied by another file, or no permissions).")
+              "(occupied by another file, or no permissions).")
         print(e)
         sp3dir = input("Choose another path, or q to quit:")
         if sp3dir == 'q':
@@ -84,10 +83,10 @@ def latencies(dt):
 def canread(filename):
     return os.access(filename, os.R_OK)
 
-def ftplist(site, dir, wk1, wk2):
+def ftplist(site, fdir, wk1, wk2):
     with FTP(site) as ftp:
         ftp.login()
-        ftp.cwd(dir)
+        ftp.cwd(fdir)
         ftp.cwd(wk1)
         dirfiles = ftp.nlst('ig*.sp3.Z')
         # unfortunately 'ig[rsu]*.sp3.Z' does not work on all servers
@@ -96,15 +95,15 @@ def ftplist(site, dir, wk1, wk2):
             dirfiles += ftp.nlst('ig*.sp3.Z')
         return dirfiles
 
-def ftpfetch(site, dir, file):
-    fullpath = 'ftp://' + site + '/' + dir + '/' + file[3:7] + '/' + file + '.Z'
+def ftpfetch(site, fdir, file):
+    fullpath = 'ftp://' + site + '/' + fdir + '/' + file[3:7] + '/' + file + '.Z'
     (filename, headers) = urlretrieve(fullpath, sp3path(file + '.Z'))
 # overwrites any existing file without complaint
     return decompress(filename)
 
-def getsp3file(dt = None):
+def getsp3file(dt=None):
     """Download the appropriate sp3 file for the given time and return filename.
-    
+
     Input may be datetime, struct_time, unix second, or Y,M,D,H,M,S tuple,
     and defaults to now.  Input is assumed to be UTC, except for aware
     datetime objects and struct_times.
@@ -123,9 +122,9 @@ def getsp3file(dt = None):
         # not enough time has passed to get a better file than we already have
         return sp3path(flist[fsnum])
     # otherwise, try to fetch best file available
-    for (site, dir) in sp3sites:
+    for (site, fdir) in sp3sites:
         try:
-            remotelist = ftplist(site, dir, flist[2][3:7], flist[-1][3:7])
+            remotelist = ftplist(site, fdir, flist[2][3:7], flist[-1][3:7])
         except Exception:
             print(site + ' failed; trying another...')
             continue
@@ -136,7 +135,7 @@ def getsp3file(dt = None):
         ftpnum = ftpfound.index(True)
         if fsnum is not None and fsnum <= ftpnum:
             return sp3path(flist[fsnum])
-        return ftpfetch(site, dir, flist[ftpnum])
+        return ftpfetch(site, fdir, flist[ftpnum])
     # if we get here, we tried every ftp site without success
     if fsnum is None:
         raise RuntimeError('Could not fetch an sp3 file from any site, '
@@ -145,7 +144,8 @@ def getsp3file(dt = None):
 
 
 #igs : %WEEK/igu%WEEK%DoW_%HR.sp3.Z
-#  where %HR is 00 (After 3:00 UTC), 06 (after 9:00 UTC), 12 (after 15:00 UTC), or 18 (after 21:00 UTC)
+#  where %HR is 00 (After 3:00 UTC), 06 (after 9:00 UTC),
+#               12 (after 15:00 UTC), or 18 (after 21:00 UTC)
 #           /igr%WEEK%DoW.sp3.Z  (after 17:00 UTC the next day or so)
 #           /igs%WEEK%DoW.sp3.Z  (after about 12 days, but currently 17 days!!)
 

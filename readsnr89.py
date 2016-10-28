@@ -6,8 +6,8 @@ from utility import fileread, stdouttofile
 from gpsazel import gpsazel, poslist, satcoeffs
 from gpstime import gpsweek, gpsdow, gpsleapsecsutc
 
-sitelocs = { 'vpr3' : (-1283649.0796, -4726431.0920, 4074789.6026),
-             'p041' : (-1283634.1275, -4726427.8944, 4074798.0304) }
+sitelocs = {'vpr3' : (-1283649.0796, -4726431.0920, 4074789.6026),
+            'p041' : (-1283634.1275, -4726427.8944, 4074798.0304)}
 
 vdir = '/bowie/data/vapr/Marshall'
 ndir = '/bowie/data/vapr-azel'
@@ -27,7 +27,7 @@ def fltcheck(word, name, mn, mx, line):
         raise ValueError(word + ' is not a valid ' + name + ' (in line "' + line + '")')
     return val
 
-def parserec(line, floatazel = False):
+def parserec(line, floatazel=False):
     words = line.split()
     if len(words) != 7:
         raise ValueError(line + ' is not a valid snr89 record')
@@ -71,7 +71,7 @@ class snr89(UserList):
     The el (elevation) and az (azimuth) fields are as found in the file,
     and may be 0 or truncated to integers.
     """
-    def __init__(self, dir, filename=None, floatazel = False, elmin = None):
+    def __init__(self, dir, filename=None, floatazel=False, elmin=None):
         UserList.__init__(self)
         if filename is None:
             if not canread(dir):
@@ -112,7 +112,7 @@ def _gpssow(year, doy, sod):
     return gpsdow(dt)*60*60*24 + sod
 
 def _todatetime(year, doy, sod):
-    return datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(days = doy - 1) + timedelta(seconds = sod)
+    return datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(days=doy - 1, seconds=sod)
 
 @stdouttofile(log)
 def rewrite(odir, ndir=ndir, filename=None):
@@ -137,10 +137,11 @@ def rewrite(odir, ndir=ndir, filename=None):
         return
     pl = poslist(week, sow0, sow0 + 60*60*24)
     cofns = satcoeffs(pl)
-    os.makedirs(ndir, exist_ok = True)
+    os.makedirs(ndir, exist_ok=True)
     err = 0
     dif = 0
-    with fileread(os.path.join(odir, filename)) as fid, open(os.path.join(ndir, filename), 'wt') as newfid:
+    with fileread(os.path.join(odir, filename)) as fid,\
+            open(os.path.join(ndir, filename), 'wt') as newfid:
         for l in fid:
             try:
                 rec = parserec(l)
@@ -177,4 +178,4 @@ def rewriteall(odir=vdir, ndir=ndir):
 
 # to profile:
 # import cProfile
-# cProfile.run('rewrite(vdir, ndir, "vpr31980.16.snr89")', 'stats_file') 
+# cProfile.run('rewrite(vdir, ndir, "vpr31980.16.snr89")', 'stats_file')

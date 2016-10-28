@@ -15,7 +15,7 @@ for line in open(statfile):
     stations += [line.split(',')]
 
 def match(station):
-    '''Given prefix string `station', find full name and country of the 
+    '''Given prefix string `station', find full name and country of the
     observation station.
     '''
     for stat in stations:
@@ -40,7 +40,7 @@ def colorplot(ax, X, Y, C, label=None, numlabs=4):
     # TODO : keep nm for all instances, so all lines are colored equivalently
     for x, y, c, n in zip(X, Y, C, count()):
         ax.plot([x], [y], linestyle='', marker='.', ms=1., mfc=c)
-        if label is not None and not n % (len(X)/4):
+        if label is not None and not n % (len(X)//numlabs):
             ax.annotate(label, [x, y])
 
 
@@ -55,11 +55,10 @@ def plot(gdo, obs, fname=None):
         matplotlib.use('Agg')
     from matplotlib.pyplot import figure, show
 
-    legends = list(gdo.prns)
-    legends.sort()
-    # TODO : split plots if epochs cover different days, or ignore < 10 data 
+    legends = sorted(gdo.prns)
+    # TODO : split plots if epochs cover different days, or ignore < 10 data
     # points
-    bubs = [[(gdte.hour + gdte.minute/60. + gdte.second/3600., ob) for 
+    bubs = [[(gdte.hour + gdte.minute/60. + gdte.second/3600., ob) for
              gdte, ob in gdo.iterlist(prn, ['epoch', obs])] for prn in legends]
     dubdub = []
     for bub in bubs:
@@ -67,7 +66,7 @@ def plot(gdo, obs, fname=None):
         dubdub += [[b[1] for b in bub]]
         # dubdub += '.'
     fig = figure()
-    ax = fig.add_subplot(1,1,1)
+    ax = fig.add_subplot(1, 1, 1)
     ax.set_position([0.125, 0.1, 0.7, 0.8])
     ax.plot(*dubdub, **{'linestyle':'', 'marker':'.', 'ms':1.})
     ax.axis((0, 24, 0, 150))
@@ -75,9 +74,9 @@ def plot(gdo, obs, fname=None):
     ax.set_ylabel('TEC (Units)')
     ax.set_title(match(gdo.meta.marker[-1]) + ' : Uncalibrated Slant TEC')
     fig.text(.08, .95, gdo.meta.firsttime.strftime('%d/%m/%Y'),
-                                                        transform=ax.transAxes)
-    fig.legend(ax.lines, legends, numpoints=1, markerscale=5, 
-                           prop=matplotlib.text.FontProperties(size='smaller'))
+             transform=ax.transAxes)
+    fig.legend(ax.lines, legends, numpoints=1, markerscale=5,
+               prop=matplotlib.text.FontProperties(size='smaller'))
     if fname and fname != 'web':
         fig.savefig(fname)
     elif fname == 'web':

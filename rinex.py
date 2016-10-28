@@ -25,6 +25,7 @@ from gpstime import gpsdatetime
 from gpsdata import GPSData
 
 RNX_VER = '2.11'
+CR_VER = '1.0'
 
 truth = lambda x : 1
 
@@ -628,8 +629,8 @@ def procheader(fid, RINEX, meta, recordnum, numlines=repeat(0),
         elif label not in RINEX:
             for lbl in RINEX:
                 if label.replace(' ', '') == lbl.replace(' ', ''):
-                    warn('Label ' + label + ' recognized as ' + lbl +
-                         ' despite incorrect whitespace.')
+                    warn('Label ' + label + ' recognized as ' + lbl
+                         + ' despite incorrect whitespace.')
                     label = lbl
                     break
         if label in RINEX:

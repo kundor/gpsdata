@@ -1,8 +1,8 @@
+import re
+from math import cos, sin, pi
+import numpy as np
 from utility import fileread
 from gpstime import gpsdatetime
-import re
-import numpy as np
-from math import cos, sin, pi
 
 __all__ = ['readsp3', 'satpos', 'mvec', 'coef_fn']
 
@@ -12,7 +12,7 @@ sp3head = [(r'#[abc][PV]', 1),
            (r'\+\+', 5),
            (r'%c [MG]  cc GPS', 1),
            (r'%c', 1),
-           (r'%f', 2), 
+           (r'%f', 2),
            (r'%i', 2),
            (r'/\*', 4)]
 """The leading characters of the 22 header lines. We check that they match
@@ -25,6 +25,7 @@ class posrecord(dict):
     Can access as record.epoch, record[13], record['G17'], or iteration.
     """
     def __init__(self, epoch=None):
+        dict.__init__(self)
         if epoch:
             self.epoch = epoch
 
@@ -42,23 +43,23 @@ class posrecord(dict):
             return dict.__contains__(self, 'G%02d' % index)
         return dict.__contains__(self, index)
 
-def _procheader(fid):        
+def _procheader(fid):
     for cc, num in sp3head:
         for _ in range(num):
             ll = fid.next()
             if not re.match(cc, ll):
                 raise ValueError(fid.name + ' does not have valid sp3 header lines (line '
-                        + str(fid.lineno) + ' begins ' + ll[:len(cc)] + '; '
-                        'we expected ' + cc + ').')
+                                 + str(fid.lineno) + ' begins ' + ll[:len(cc)] + '; '
+                                'we expected ' + cc + ').')
 
 def _gps_second(epline):
     """Convert an epoch header line to seconds from the gps epoch.
-    
+
     The value is a Python float, which has a resolution of roughly one microsecond
     when the value is around a billion (ca. 2016)"""
     dt = gpsdatetime.strptime(epline[:29], "*  %Y %m %d %H %M %S.%f")
     return (dt - gpsdatetime()).total_seconds()
-    
+
 def _addpos(rec, pline):
     prn = pline[1:4]
     x = float(pline[4:18])
@@ -68,7 +69,7 @@ def _addpos(rec, pline):
 
 def readsp3(filename):
     """List of dictionaries, PRN to (x,y,z) tuple, from the sp3 file.
-    
+
     Each dictionary has an epoch field with the seconds since the GPS epoch.
     """
     with fileread(filename) as fid:
@@ -86,7 +87,7 @@ def readsp3(filename):
                 _addpos(poslist[-1], line)
             else:
                 print('Unrecognized line in sp3 file ' + filename + ':\n' + line
-                        + '\nIgnoring...')
+                      + '\nIgnoring...')
         return poslist
 
 def satpos(poslist, prn, sec):
@@ -103,7 +104,7 @@ def satpos(poslist, prn, sec):
 
 def mvec(t, n=5):
     p = 2*pi/86164.090530833*t # 2π/mean sidereal day
-    return [1] + [sin(k*p) for k in range(1, n+1)] + [cos(k*p) for k in range(n,0,-1)]
+    return [1] + [sin(k*p) for k in range(1, n+1)] + [cos(k*p) for k in range(n, 0, -1)]
 
 def coeffs(times, xyz):
     n = len(times)//2
@@ -113,20 +114,19 @@ def coeffs(times, xyz):
 def allcoeffs(poslist, prn, n=5):
     return [coeffs([p.epoch for p in poslist[idx-n:idx+n+1]],
                    [p[prn] for p in poslist[idx-n:idx+n+1]])
-            for idx in range(n,len(poslist)-n)]
+            for idx in range(n, len(poslist)-n)]
 
-class myinterp:
-    """A linear interpolator, for regularly-spaced data."""
-    def __init__(self, start, step, data):
-        self.start = start
-        self.step = step
-        self.data = data
+def myinterp(start, step, data):
+    """A linear interpolator, for regularly-spaced data.
 
-    def __call__(self, x):
-        idx0 = int((x - self.start) // self.step)
-        t0 = self.start + idx0 * self.step
-        T = (x - t0)/self.step
-        return T*self.data[idx0 + 1] + (1-T)*self.data[idx0]
+    Return a function to be called with new values.
+    """
+    def newfn(x):
+        idx0 = int((x - start) // step)
+        t0 = start + idx0 * step
+        T = (x - t0)/step
+        return T*data[idx0 + 1] + (1-T)*data[idx0]
+    return newfn
 
 def coef_fn(poslist, prn, n=5):
     AC = allcoeffs(poslist, prn, n)

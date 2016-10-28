@@ -14,6 +14,7 @@ saved to a pickle file.
 
 import os
 import re
+import io
 import sys
 import gzip
 import time
@@ -53,7 +54,7 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
         if gunzip:
             if verbose:
                 print('Unpacking gzipped tarfile.')
-            zfile = tarfile.open(filename,'r:gz')
+            zfile = tarfile.open(filename, 'r:gz')
         elif gunzip is None:
             if verbose:
                 print('Unpacking tarfile.')
@@ -61,7 +62,7 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
         else:
             if verbose:
                 print('Unpacking noncompressed tarfile.')
-            zfile = tarfile.open(filename,'r:')  # Force no gunzip
+            zfile = tarfile.open(filename, 'r:')  # Force no gunzip
         zfile = zfile.extractfile(zfile.next())
     elif gunzip == 2 or (gunzip is None and filename.endswith('.Z')):
         if verbose:
@@ -72,7 +73,7 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
         if verbose:
             print('Gunzipping file.')
         zfile = gzip.open(filename)
-        if filename.lower().endwith('.gz'):
+        if filename.lower().endswith('.gz'):
             zfile.name = filename[:-3]
         elif filename.lower().endswith('.z'):
             zfile.name = filename[:-2]
@@ -81,9 +82,9 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
     else:
         zfile = open(filename)
     if format is None:
-        if re.search('\.[0-9]{2}[Oo]$', zfile.name):
+        if re.search(r'\.[0-9]{2}[Oo]$', zfile.name):
             format = 'RINEX'
-        elif re.search('\.[0-9]{2}[Dd]$', zfile.name):
+        elif re.search(r'\.[0-9]{2}[Dd]$', zfile.name):
             format = 'CRINEX'
     if format in ('RINEX', 'CRINEX'):
         if verbose:
@@ -95,13 +96,13 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
 
 def index(req, n_file, n_type):
     '''Read GPS observation data and show summary or TEC plot.
-    
+
     This function is called for mod_python in a web server (apache).
     '''
     database = '/web/gps/data/'
     filedate = time.strptime(n_file[5:11], '%y%m%d')
     url = os.path.join(database, n_file[0:4], str(filedate.tm_year), n_file[7:9],
-                                                               'rinex', n_file)
+                       'rinex', n_file)
     # Parse RINEX file
     dat = read_file(url)
     if n_type.lower() == 'summary':
@@ -111,13 +112,10 @@ def index(req, n_file, n_type):
     elif n_type.lower() == 'tec':
         # Return TEC plot
         fig = plotter.plot(dat, 'TEC', 'web')
-        f = os.tmpfile()
-        fig.savefig(f)
-        f.seek(0)
-        req.content_type = "image/png"
-        req.write(f.read())
-        f.close()
-
+        with io.BytesIO() as f:
+            fig.savefig(f, format='png')
+            req.content_type = "image/png"
+            req.write(f.getvalue())
 
 def main():
     '''Read GPS observation data, downloading, gunzipping, and uncompressing
@@ -127,47 +125,47 @@ def main():
     if 'plotter' in dir():
         usage = usage + ' [-i OBSERVATION]'
     usage = usage + ' <filename> [-o OUTPUT]'
-    parser = OptionParser(description=main.func_doc, usage=usage)
+    parser = OptionParser(description=main.__doc__, usage=usage)
     parser.add_option('-v', '--version', action='store_true',
-              help='Show version and quit')
+                      help='Show version and quit')
     parser.add_option('-V', '--verbose', action='store_true',
-              help='Verbose operation')
+                      help='Verbose operation')
 #   parser.add_option('-p', '--pickle', action='store_true',
-#             help='Save parsed data as a pickle file (extension becomes .pkl')
+#                     help='Save parsed data as a pickle file (extension becomes .pkl')
     parser.set_defaults(pickle=None) # TODO: fix pickling
     if 'plotter' in dir():
-        parser.add_option('-i', '--image', action='store', 
-                          metavar='OBSERVATION', help='Plot given OBSERVATION'
-                              ' for all  satellites;  display unless -o given')
+        parser.add_option('-i', '--image', action='store', metavar='OBSERVATION',
+                          help='Plot given OBSERVATION for all  satellites; '
+                               ' display unless -o given')
     else:
         parser.set_defaults(image=None)
-    parser.add_option('-g', '--gunzip', action='store_const', const=1, 
-              help='Force treatment as gzipped')
+    parser.add_option('-g', '--gunzip', action='store_const', const=1,
+                      help='Force treatment as gzipped')
     parser.add_option('-u', '--uncompress', action='store_const', const=2, dest='gunzip',
-              help="Force treatment as compress'd")
+                      help="Force treatment as compress'd")
     parser.add_option('-G', '--no-gunzip', action='store_const', const=0, dest='gunzip',
-              help='Do not gunzip or uncompress')
+                      help='Do not gunzip or uncompress')
     parser.add_option('-t', '--tar', action='store_true',
-              help='Force treatment as tar file')
+                      help='Force treatment as tar file')
     parser.add_option('-T', '--notar', action='store_false', dest='tar',
-              help='Do not untar')
-    parser.add_option('-f', '--format', action='store', 
-              choices=['RINEX', 'CRINEX'],
-              help='Format of GPS observation file (default: by extension)')
+                      help='Do not untar')
+    parser.add_option('-f', '--format', action='store',
+                      choices=['RINEX', 'CRINEX'],
+                      help='Format of GPS observation file (default: by extension)')
     parser.add_option('-o', '--output', action='append',
-              help='File to save data in (must specify -i or -p)')
+                      help='File to save data in (must specify -i or -p)')
     (opts, args) = parser.parse_args()
     if opts.version:
         print('GPSData version', __ver__, 'supporting RINEX version',
-              RNX_VER, 'and Compact RINEX version', CR_VER, '.')
+              rinex.RNX_VER, 'and Compact RINEX version', rinex.CR_VER, '.')
     elif opts.image and opts.pickle:
         parser.error('Cannot output both a pickle and an image - sorry.')
     elif not args:
         parser.error('Filename or URL required.')
     else:
         try:
-            parsed_data = [read_file(url, opts.format, opts.verbose, 
-                opts.gunzip, opts.tar) for url in args]
+            parsed_data = [read_file(url, opts.format, opts.verbose,
+                                     opts.gunzip, opts.tar) for url in args]
         except IOError as ioe:
             print(ioe)
             sys.exit(ioe.errno)

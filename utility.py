@@ -15,7 +15,7 @@ def stdouttofile(file):
 
 def decompress(filename, move=False):
     """Decompress a (Lempel-Ziv) compress'd file.
-    
+
     There seems to be no Python module to do this (the gzip module won't handle it,
     though the gzip program will), so we call an external process.
     These programs will only decompress if the filename ends with .Z;
@@ -38,7 +38,7 @@ def decompress(filename, move=False):
                       ['gzip', '-d', filename]]
     for cmd in decompresscmds:
         try:
-            subprocess.run(cmd, check = True)
+            subprocess.run(cmd, check=True)
         except (OSError, subprocess.CalledProcessError):
             print("Command '", ' '.join(cmd), "' failed. Trying another...")
             continue
@@ -86,12 +86,12 @@ class listvalue(dict):
         else:
             index = max([k for k in self if k <= index])
         return dict.__getitem__(self, index)
-    
+
     def __contains__(self, index):
         if index in (0, -1):
             return True
         return isinstance(index, (int, float)) and index > 0
-    
+
 
 class metadict(dict):
     '''A dictionary for RINEX header values.
@@ -116,7 +116,7 @@ class fileread(object):
     '''
     def __new__(cls, file):
         '''Create a fileread object.
-        
+
         Input can be filename string, file descriptor number, or any object
         with `readline'.
         '''
@@ -138,7 +138,7 @@ class fileread(object):
                 fr.name = file.url
         else:
             raise ValueError("Input of type " + str(type(file)) +
-                                                          " is not supported.")
+                             " is not supported.")
         fr.reset()
         return fr
 
@@ -157,7 +157,7 @@ class fileread(object):
         return line.rstrip('\r\n')
 
     __next__ = next
-    
+
     def readline(self):
         '''A synonym for next() which doesn't strip newlines or raise StopIteration.'''
         line = self.fid.readline()
@@ -167,7 +167,7 @@ class fileread(object):
 
     def __iter__(self):
         return self
-    
+
     def reset(self):
         '''Go back to the beginning if possible. Set lineno to 0 regardless.'''
         if hasattr(self.fid, 'seek'):

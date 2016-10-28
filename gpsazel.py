@@ -6,11 +6,12 @@ from math import pi
 from contextlib import suppress
 
 def totalsec(gpsweek, gpssow):
+    """Total number of seconds since GPS epoch (Jan 6 1980)"""
     return gpsweek * 7 * 24 * 60 * 60 + gpssow
 
-def poslist(gpsweek, sow_start, sow_end = None):
+def poslist(gpsweek, sow_start, sow_end=None):
     """Return a list of sp3 satellite positions encompassing the given times.
-    
+
     It is okay if sow_start and sow_end are negative or larger than a week's worth.
     """
     if sow_end is None:
@@ -38,7 +39,7 @@ def poslist(gpsweek, sow_start, sow_end = None):
 
 def satcoeffs(pl):
     """Position coefficient functions for all satellites in pl.
-    
+
     Given a poslist (as from poslist() or readsp3()), compute interpolating
     coefficient functions for the positions of each satellite; return a dictionary
     by PRN.
