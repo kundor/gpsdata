@@ -1,9 +1,9 @@
-from fetchnav import getsp3file
-from satpos import readsp3, satpos, coef_fn, mvec, posrecord
-from coords import xyz2enu, enu2azel
 from warnings import warn
 from math import pi
 from contextlib import suppress
+from .fetchnav import getsp3file
+from .satpos import readsp3, satpos, coef_fn, mvec, posrecord
+from .coords import xyz2enu, enu2azel
 
 def totalsec(gpsweek, gpssow):
     """Total number of seconds since GPS epoch (Jan 6 1980)"""

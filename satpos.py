@@ -1,8 +1,8 @@
 import re
 from math import cos, sin, pi
 import numpy as np
-from utility import fileread
-from gpstime import gpsdatetime
+from .utility import fileread
+from .gpstime import gpsdatetime
 
 __all__ = ['readsp3', 'satpos', 'mvec', 'coef_fn']
 

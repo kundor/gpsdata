@@ -26,8 +26,8 @@ from warnings import warn
 from datetime import datetime
 from textwrap import wrap
 
-from utility import listvalue, metadict
-from gpstime import leapseconds, gpsdatetime, gpstz, utctz, taitz
+from .utility import listvalue, metadict
+from .gpstime import leapseconds, gpsdatetime, gpstz, utctz, taitz
 
 TECUns = 2.854  # TECU/ns according to GPS-Scinda, Charles Carrano, 4-7-08
 # TECUns = 2.852  # TECU/ns according to TECalc_rinex, Pat Doherty, 2-21-94
