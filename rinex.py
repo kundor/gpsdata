@@ -516,6 +516,8 @@ class obsLine(object):
         STR = toint(self.line[self.ind * 16 + 15 : self.ind * 16 + 16])
         return (val, LLI, STR)
 
+    __next__ = next
+
     def __iter__(self):
         return self
 
@@ -596,8 +598,7 @@ def get_data(fid, is_crx=None):
             procheader(fid, rinex, obsdata.meta, len(obsdata),
                        xrange(record.numrec))
         elif 0 <= record.flag <= 1:
-            obsdata.newrecord(record.epoch, bool(record.flag),
-                              record.offset(fid))
+            obsdata.newrecord(record.epoch, bool(record.flag), record.offset(fid))
             for prn in record.prnlist(fid):
                 dataline = record.dataline(prn, len(obsdata.obscodes()))
                 numobs = obspersat.setdefault(prn, {})

@@ -2,7 +2,7 @@ from twisted.protocols.basic import LineReceiver
 import re
 
 
-def parse_tracking_satus(status):
+def parse_tracking_status(status):
     """
     Parse channel tracking status information as described in Table 62 in 
     the OEM4 Family Firmware Version 2.310 Command and Log Reference provided

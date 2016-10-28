@@ -22,7 +22,7 @@ and so forth.
 
 import sys
 import warnings
-from datetime import datetime, timedelta
+from datetime import datetime
 from textwrap import wrap
 from warnings import warn
 
@@ -291,7 +291,7 @@ class GPSData(list):
                     self.phasearcs[prn][-1][1] is None):
                 self.phasearcs[prn][-1][1] = len(self) - 2
             # try:
-            #     idx = max([k for k in xrange(len(self.phasearcs[prn])) if
+            #     idx = max([k for k in range(len(self.phasearcs[prn])) if
             #               self.phasearcs[prn][k][0] <= which])
             # except ValueError:
             #     continue
@@ -340,30 +340,33 @@ class GPSData(list):
         Returns an iterator over the list of records.
 
         If a PRN is specified for `sat', iterates over lists of values for
-        the given satellite, corresponding the obsversation codes in "allobs".
+        the given satellite, corresponding to the observation codes in "allobs".
         If an observation code is specified for `obscode', iterates over
         lists of values for the given observation type, corresponding to the
-        satellites in "prns".
+        satellites in "prns" (in sorted order).
         If both are specified, iterates over values.
+        If an set is provided for either argument, the returned values
+        correspond to the sorted order; if a list or tuple is provided, the returned
+        values correspond to the given order.
         '''
         if isinstance(sat, (list, tuple, set, dict)):
             if not sat:
                 sat = None
             elif len(sat) == 1:
-                sat = sat[0]
-            elif isinstance(sat, (tuple, set, dict)):
-                sat = list(sat)
+                sat = next(iter(sat))
+            elif isinstance(sat, (set, dict)):
+                sat = sorted(sat)
         if sat is None:
-            sat = list(self.prns)
+            sat = sorted(self.prns)
         if isinstance(obscode, (list, tuple, set, dict)):
             if not obscode:
                 obscode = None
             elif len(obscode) == 1:
-                obscode = obscode[0]
-            elif isinstance(obscode, (tuple, set, dict)):
-                obscode = [o for o in obscode]
+                obscode = next(iter(obscode))
+            elif isinstance(obscode, (set, dict)):
+                obscode = sorted(obscode)
         if obscode is None:
-            obscode = list(self.allobs)
+            obscode = sorted(self.allobs)
 
         def chooser(obs, rec, sat, spec=None):
             if sat in rec and obs in rec[sat]:
@@ -378,13 +381,13 @@ class GPSData(list):
             return None
 
         for record in self:
-            if isinstance(obscode, list) and isinstance(sat, list):
+            if isinstance(obscode, (list, tuple)) and isinstance(sat, (list, tuple)):
                 yield [hichoose(s, record, obscode) for s in sat]
-            elif isinstance(obscode, list) and sat in record:
+            elif isinstance(obscode, (list, tuple)) and sat in record:
                 yield [chooser(obs, record, sat, 'epoch') for obs in obscode]
             elif obscode == 'epoch':
                 yield record['epoch']
-            elif isinstance(sat, list):
+            elif isinstance(sat, (list, tuple)):
                 yield [chooser(obscode, record, s) for s in sat]
             elif sat in record and obscode in record[sat]:
                 yield record[sat][obscode]
@@ -592,7 +595,7 @@ class GPSData(list):
                 t1 = self[-1].epoch
             for leap in leapseconds:
                 if t0 < leap < t1:
-                    ind = max([k for k in xrange(len(self)) 
+                    ind = max([k for k in range(len(self)) 
                                                      if self[k].epoch <= leap])
                     self.meta['leapseconds'][ind] = gpstz.utcoffset(leap).seconds
         if 'interval' in self.meta:
