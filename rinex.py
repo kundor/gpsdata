@@ -49,7 +49,7 @@ def tofloat(x):
         return 0.
     return float(x)
 
-to3float = lambda s : tuple(tofloat(s[k*14:(k+1)*14]) for k in (0, 1, 2))
+to3float = lambda line : tuple(tofloat(line[k*14:(k+1)*14]) for k in (0, 1, 2))
 
 def delta2float(x):
     return x.days * 86400. + float(x.seconds) + x.microseconds / 1e9
@@ -83,14 +83,14 @@ def iso(c):
     return c.upper()
 
 
-def parsetime(s, tight=False, baseyear=None):
+def parsetime(line, tight=False, baseyear=None):
     '''Parse RINEX time epoch into gpsdatetime object.
 
     Can parse either the form in headers (tight=False)
     or the form in observation data epoch lines (tight=True);
-    the latter has two digit years which can be disambiguation with `baseyear'.
+    the latter has two digit years which can be disambiguated with `baseyear'.
     '''
-    if not s.strip():
+    if not line.strip():
         return None
     if tight:
         width = 3
@@ -98,18 +98,18 @@ def parsetime(s, tight=False, baseyear=None):
     else:
         width = 6
         secwidth = 13
-    year = toint(s[0 : width])
+    year = toint(line[0 : width])
     if tight and baseyear is not None:
         year += (int(baseyear)//100)*100
     elif tight and year < 80:
         year += 2000
     elif tight:
         year += 1900
-    month = toint(s[width : width * 2])
-    day = toint(s[width * 2 : width * 3])
-    hour = toint(s[width * 3 : width * 4])
-    minute = toint(s[width * 4 : width * 5])
-    second = tofloat(s[width * 5 : width * 5 + secwidth])
+    month = toint(line[width : width * 2])
+    day = toint(line[width * 2 : width * 3])
+    hour = toint(line[width * 3 : width * 4])
+    minute = toint(line[width * 4 : width * 5])
+    second = tofloat(line[width * 5 : width * 5 + secwidth])
     usec = (second - int(second)) * 1000000
     return gpsdatetime(year, month, day, hour, minute, int(second), usec, None)
 
@@ -155,25 +155,25 @@ class obscode:
     def __init__(self):
         self.numtypes = None
 
-    def __call__(self, s):
-        nt = toint(s[0:6])
+    def __call__(self, line):
+        nt = toint(line[0:6])
         if self.numtypes is not None and not nt:  # continuation line
             if len(self.obstypes) >= self.numtypes:
                 raise RuntimeError('Observation code headers seem broken.')
             for ot in range(min(self.numtypes - len(self.obstypes), 9)):
-                self.obstypes += [s[6 * ot + 10 : 6 * ot + 12]]
+                self.obstypes += [line[6 * ot + 10 : 6 * ot + 12]]
         elif nt:
             self.numtypes = nt
             self.obstypes = []
             for ot in range(min(nt, 9)):
-                self.obstypes += [s[6 * ot + 10 : 6 * ot + 12]]
+                self.obstypes += [line[6 * ot + 10 : 6 * ot + 12]]
         else:
             raise RuntimeError('Observation type code continuation header '
                                'without beginning!')
         return self.obstypes[:]
 
 
-class satnumobs:
+def satnumobs():
     '''
     Parse RINEX PRN / # OF OBS headers.
 
@@ -185,34 +185,33 @@ class satnumobs:
     This program will determine this information anyway, and check against the
     header if it is supplied.
     '''
-    def __init__(self):
-        self.sno = {}
-        self.prn = None
+    sno = {}
+    oprn = [None]
 
-    def __call__(self, s):
+    def snoparse(line):
         '''Return a dictionary, by satellite PRN code, of observation counts.
 
         The counts are a list in the same order as obscode().
         '''
-        prn = s[0:3]
-        if prn.strip() == '' and self.prn is not None:  # continuation line
-            pass
+        prn = line[0:3]
+        if prn.strip() == '' and oprn[0]:  # continuation line
+            prn = oprn[0]
         elif prn.strip() != '':
             prn = btog(prn[0]) + '%02d' % toint(prn[1:])
-            self.prn = prn
-            if prn in self.sno:
+            oprn[0] = prn
+            if prn in sno:
                 warn('Repeated # OF OBS for PRN ' + prn + ', why?')
             else:
-                self.sno[prn] = []
+                sno[prn] = []
         else:
             raise RuntimeError('PRN / # OF OBS continuation without beginning!')
         for no in range(9):
-            obs = s[no * 6 + 3: no * 6 + 9]
+            obs = line[no * 6 + 3: no * 6 + 9]
             if obs.strip() == '':
                 break
             else:
-                self.sno[self.prn] += [toint(obs)]
-        return self.sno
+                sno[prn] += [toint(obs)]
+        return sno
 
 
 class header:
@@ -376,8 +375,7 @@ class recordLine:
             s = z % 12
             if z and not s:
                 line = fid.next()
-            prn = btog(line[32 + s * 3]) + '%02d' % \
-                                           toint(line[33 + s * 3 : 35 + s * 3])
+            prn = btog(line[32 + s * 3]) + '%02d' % toint(line[33 + 3*s : 35 + 3*s])
             prnlist += [prn]
         return prnlist
 
