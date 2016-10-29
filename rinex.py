@@ -326,7 +326,7 @@ RINEX = {
                                        ('antennatype', 20, 40))),
     'ANTENNA: DELTA H/E/N' : listonce((('antennashift', 0, 42, to3float),)),
     # Up, East, North shift (meters) from marker position
-    'WAVELENGTH FACT L1/2' : listonce((('ambiguity', 0, 53, wavelength()),)),
+    'WAVELENGTH FACT L1/2' : listonce((('ambiguity', 0, 53, wavelength),)),
     '# / TYPES OF OBSERV ' : listonce((('obscodes', 0, 60, obscode()),)),
     'INTERVAL            ' : listonce((('interval', 0, 10, tofloat),)),
     'TIME OF FIRST OBS   ' : header((('firsttime', 0, 43, parsetime),
