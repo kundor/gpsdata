@@ -270,9 +270,9 @@ class listheader(header):
     def read(self, meta, line, recordnum, lineno, epoch=None):
         for field in self.mems:
             if field.name not in meta:
-                meta[field.name] = [field.read(line)]
+                meta[field.name] = [self._fread(field,line)]
             else:
-                meta[field.name] += [field.read(line)]
+                meta[field.name] += [self._fread(field,line)]
             meta[field.name][-1].recordnum = recordnum
             meta[field.name][-1].lineno = lineno
             if epoch is not None:
@@ -292,7 +292,7 @@ class listonce(header):
         for field in self.mems:
             if field.name not in meta:
                 meta[field.name] = listvalue()
-            meta[field.name][recordnum] = field.read(line)
+            meta[field.name][recordnum] = self._fread(field,line)
             meta[field.name][recordnum].recordnum = recordnum
             meta[field.name][recordnum].lineno = lineno
             if epoch is not None:
