@@ -15,6 +15,7 @@ a GPSData object.
 # Support other RINEX file types (navigation message, meteorological data,
 # clock date file).
 
+import time
 from itertools import zip_longest, repeat
 from copy import deepcopy
 from warnings import warn
@@ -83,35 +84,41 @@ def iso(c):
     return c.upper()
 
 
-def parsetime(line, tight=False, baseyear=None):
-    '''Parse RINEX time epoch into gpsdatetime object.
+def fullyear(year, baseyear):
+    '''Disambiguate two-digit year given a nearby full baseyear.'''
+# Rinex 2.12 specifies, in absence of baseyear, 80--99 mean 1980--1999,
+# and 00--79 mean 2000--2079.
+    if baseyear is None:
+        baseyear = 2000
+    base = int(baseyear)//100
+    if (baseyear % 100) - year > 80:
+# if the baseyear is 1999 and the 2-digit year is 00, its probably not 1900
+        base += 1
+    elif (baseyear % 100) - year <= -80:
+# if base is 2000 and 2-digit is 99, probably not 2099
+        base -= 1
+    return year + base*100
 
-    Can parse either the form in headers (tight=False)
-    or the form in observation data epoch lines (tight=True);
-    the latter has two digit years which can be disambiguated with `baseyear'.
+
+def parseheadtime(line):
+    '''Parse RINEX time epoch, from headers, into gpsdatetime object.'''
+# ignores last of the seven digits after decimal point in RINEX seconds
+    return gpsdatetime.strptime(line[:42], "  %Y    %m    %d    %H    %M   %S.%f")
+# strptime doesn't actually pay attention to the number of spaces in the format string,
+# but we specify the right number anyway...
+
+
+def parsetime(line, baseyear):
+    '''Parse RINEX time epoch from observation data into gpsdatetime object.
+
+    The source has two digit years which can be disambiguated with `baseyear'.
     '''
     if not line.strip():
         return None
-    if tight:
-        width = 3
-        secwidth = 11
-    else:
-        width = 6
-        secwidth = 13
-    year = toint(line[0 : width])
-    if tight and baseyear is not None:
-        year += (int(baseyear)//100)*100
-    elif tight and year < 80:
-        year += 2000
-    elif tight:
-        year += 1900
-    month = toint(line[width : width * 2])
-    day = toint(line[width * 2 : width * 3])
-    hour = toint(line[width * 3 : width * 4])
-    minute = toint(line[width * 4 : width * 5])
-    second = tofloat(line[width * 5 : width * 5 + secwidth])
-    usec = (second - int(second)) * 1000000
-    return gpsdatetime(year, month, day, hour, minute, int(second), usec, None)
+    year = fullyear(int(line[0:3]), baseyear)
+    mdhms = time.strptime(line[3:18], " %m %d %H %M %S")
+    usec = tofloat(line[18:26]) * 1000000
+    return gpsdatetime(year, *mdhms[1:6], usec, None)
 
 
 def wavelength(line, *, waveinfo={'G%02d' % prn : (1, 1) for prn in range(1, 33)}):
@@ -328,9 +335,9 @@ RINEX = {
     'WAVELENGTH FACT L1/2' : listonce((('ambiguity', 0, 53, wavelength),)),
     '# / TYPES OF OBSERV ' : listonce((('obscodes', 0, 60, obscode()),)),
     'INTERVAL            ' : listonce((('interval', 0, 10, tofloat),)),
-    'TIME OF FIRST OBS   ' : header((('firsttime', 0, 43, parsetime),
+    'TIME OF FIRST OBS   ' : header((('firsttime', 0, 43, parseheadtime),
                                      ('firsttimesys', 48, 51)), 1),
-    'TIME OF LAST OBS    ' : header((('endtime', 0, 43, parsetime),
+    'TIME OF LAST OBS    ' : header((('endtime', 0, 43, parseheadtime),
                                      ('endtimesys', 48, 51))),
     # End timesys must agree with first timesys.
     'RCV CLOCK OFFS APPL ' : listonce((('receiverclockcorrection', 0, 6, toint),)),
@@ -354,7 +361,7 @@ class recordLine:
         '''Process a new epoch line.'''
         self.line = self.getline(fid)
         self.oldepoch = self.epoch
-        self.epoch = parsetime(self.line[0:26], True, self.baseyear)
+        self.epoch = parsetime(self.line[0:26], self.baseyear)
         if self.epoch is not None and self.oldepoch is not None:
             self.intervals.add(delta2float(self.epoch - self.oldepoch))
         self.numrec = toint(self.line[29:32])
