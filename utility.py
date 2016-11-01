@@ -84,7 +84,7 @@ class listvalue(dict):
         elif index == -1:
             index = max(self)
         else:
-            index = max([k for k in self if k <= index])
+            index = max(k for k in self if k <= index)
         return dict.__getitem__(self, index)
 
     def __contains__(self, index):
