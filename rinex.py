@@ -1,6 +1,5 @@
 # Created by Nick Matteo <kundor@kundor.org> June 9, 2009
-'''
-Utilities to read RINEX GPS file values.
+"""Utilities to read RINEX GPS file values.
 
 Mostly you will use readfile.read_file(URL), where URL can be an http, ftp, or
 local file path to a gzipped, compact, or standard RINEX observation file.
@@ -9,7 +8,7 @@ This module has functions specific to processing RINEX.
 Most notably, get_data(file) turns a standard RINEX file into
 a GPSData object.
 
-'''
+"""
 # TODO:
 # Confirm reading Rinex versions 2.0-2.09; read RINEX 3 / CRINEX 3;
 # Support other RINEX file types (navigation message, meteorological data,
@@ -57,9 +56,7 @@ def delta2float(x):
 
 
 def versioncheck(ver):
-    '''
-    Given RINEX format version ver, verify that this program can handle it.
-    '''
+    """Given RINEX format version ver, verify that this program can handle it."""
     nums = ver.split('.')
     if not 0 < len(nums) < 3:
         raise ValueError('RINEX Version not parsable')
@@ -71,21 +68,21 @@ def versioncheck(ver):
 
 
 def crxcheck(ver):
-    '''Check whether Compact RINEX version is known to this program.'''
+    """Check whether Compact RINEX version is known to this program."""
     if ver != '1.0':
         raise ValueError('CRINEX version ' + ver + ' not supported.')
     return ver.strip()
 
 
 def iso(c):
-    '''Ensure that the character c is `O' (for RINEX observation data.)'''
+    """Ensure that the character c is `O' (for RINEX observation data.)"""
     if c.upper() != 'O':
         raise IOError('RINEX File is not observation data')
     return c.upper()
 
 
 def fullyear(year, baseyear):
-    '''Disambiguate two-digit year given a nearby full baseyear.'''
+    """Disambiguate two-digit year given a nearby full baseyear."""
 # Rinex 2.12 specifies, in absence of baseyear, 80--99 mean 1980--1999,
 # and 00--79 mean 2000--2079.
     if baseyear is None:
@@ -101,7 +98,7 @@ def fullyear(year, baseyear):
 
 
 def parseheadtime(line):
-    '''Parse RINEX time epoch, from headers, into gpsdatetime object.'''
+    """Parse RINEX time epoch, from headers, into gpsdatetime object."""
 # ignores last of the seven digits after decimal point in RINEX seconds
     return gpsdatetime.strptime(line[:42], "  %Y    %m    %d    %H    %M   %S.%f")
 # strptime doesn't actually pay attention to the number of spaces in the format string,
@@ -109,10 +106,10 @@ def parseheadtime(line):
 
 
 def parsetime(line, baseyear):
-    '''Parse RINEX time epoch from observation data into gpsdatetime object.
+    """Parse RINEX time epoch from observation data into gpsdatetime object.
 
     The source has two digit years which can be disambiguated with `baseyear'.
-    '''
+    """
     if not line.strip():
         return None
     year = fullyear(int(line[0:3]), baseyear)
@@ -122,14 +119,13 @@ def parsetime(line, baseyear):
 
 
 def wavelength(line, *, waveinfo={'G%02d' % prn : (1, 1) for prn in range(1, 33)}):
-    '''
-    Parse RINEX WAVELENGTH FACT L1/2 headers
+    """Parse RINEX WAVELENGTH FACT L1/2 headers
 
     These headers specify 1: Full cycle ambiguities (default),
     2: half cycle ambiguities (squaring), or 0: does not apply,
     either globally or for particular satellites.
     This is only valid for GPS satellites on frequencies L1 or L2.
-    '''
+    """
     # "waveinfo" is a persistent store of current ambiguities,
     # which is updated with each new header line. (it should not be passed)
     # If prn list is empty (numsats = 0), L1/2 ambiguity applies to all
@@ -150,13 +146,12 @@ def wavelength(line, *, waveinfo={'G%02d' % prn : (1, 1) for prn in range(1, 33)
 
 
 class obscode:
-    '''
-    Parse RINEX # / TYPES OF OBSERV headers, specifying observation types.
+    """Parse RINEX # / TYPES OF OBSERV headers, specifying observation types.
 
     These header list observation codes which will be listed in this file.
     Continuation lines are necessary for more than 9 observation types.
     It is possible to redefine this list in the course of a file.
-    '''
+    """
     # There must be `numtypes' many observation codes, possibly over two lines.
     # Continuation lines have blank `numtypes'.
     def __init__(self):
@@ -181,8 +176,7 @@ class obscode:
 
 
 def satnumobs():
-    '''
-    Parse RINEX PRN / # OF OBS headers.
+    """Parse RINEX PRN / # OF OBS headers.
 
     These headers list how many of each observation type were recorded for
     each satellite included in the file.  If present, there will be one for
@@ -191,15 +185,15 @@ def satnumobs():
     necessary for each satellite.
     This program will determine this information anyway, and check against the
     header if it is supplied.
-    '''
+    """
     sno = {}
     oprn = [None]
 
     def snoparse(line):
-        '''Return a dictionary, by satellite PRN code, of observation counts.
+        """Return a dictionary, by satellite PRN code, of observation counts.
 
         The counts are a list in the same order as obscode().
-        '''
+        """
         prn = line[0:3]
         if prn.strip() == '' and oprn[0]:  # continuation line
             prn = oprn[0]
@@ -222,13 +216,13 @@ def satnumobs():
 
 
 class header:
-    '''
-    For each RINEX header type, this holds a list of field objects
-    which are defined in the associated line.
+    """Header info for a given RINEX header type.
+    
+    Holds a list of field objects which are defined in the associated line.
     This is for header values which should only occur once.
-    '''
+    """
     field = namedtuple('field', ('name', 'start', 'stop', 'convert'))
-    '''A value in a RINEX header: variable name, position in the line, and how to interpret it.'''
+    """A value in a RINEX header: variable name, position in the line, and how to interpret it."""
     field.__new__.__defaults__ = (str.strip,) # default "convert" function
 
     def __init__(self, field_args, multi_act=0):
@@ -267,12 +261,11 @@ class header:
 
 
 class listheader(header):
-    '''
-    This class is for header values which may occur several times.
+    """This class is for header values which may occur several times.
 
     Each instance of the header is considered valid, and is stored.
     They are accessed as a list.
-    '''
+    """
     def read(self, meta, line, recordnum, lineno, epoch=None):
         for field in self.mems:
             if field.name not in meta:
@@ -286,14 +279,13 @@ class listheader(header):
 
 
 class listonce(header):
-    '''
-    For header values which can only have one value at a time
+    """For header values which can only have one value at a time
 
     The value may change for different observation records.
     If multiple instances are at the same record number, the last is used.
     They are accessed by record number; whichever value is valid for that
     record is returned.
-    '''
+    """
     def read(self, meta, line, recordnum, lineno, epoch=None):
         for field in self.mems:
             if field.name not in meta:
@@ -349,8 +341,10 @@ RINEX = {
 
 
 class recordLine:
-    '''Parse record headers (epoch lines) in standard RINEX:
-    Combine continuation lines if necessary.'''
+    """Parse record headers (epoch lines) in standard RINEX.
+
+    Combine continuation lines if necessary.
+    """
     def __init__(self, baseyear):
         self.line = ''
         self.baseyear = baseyear
@@ -358,7 +352,7 @@ class recordLine:
         self.intervals = set()
 
     def update(self, fid):
-        '''Process a new epoch line.'''
+        """Process a new epoch line."""
         self.line = self.getline(fid)
         self.oldepoch = self.epoch
         self.epoch = parsetime(self.line[0:26], self.baseyear)
@@ -371,11 +365,10 @@ class recordLine:
         return fid.next()
 
     def prnlist(self, fid):
-        '''
-        Return the list of PRNs (satellite IDs) included in this epoch line.
+        """Return the list of PRNs (satellite IDs) included in this epoch line.
 
         May consume extra lines if there are more than 12 PRNs.
-        '''
+        """
         prnlist = []
         line = self.line
         for z in range(self.numrec):
@@ -390,17 +383,15 @@ class recordLine:
         return obsLine()
 
     def offset(self, fid):
-        '''
-        Return receiver clock offset (optionally) included at end of epoch line.
-        '''
+        """Return receiver clock offset optionally included at end of epoch line."""
         return tofloat(self.line[68:])
 
 
 class recordArc(recordLine):
-    '''
-    Parse record headers in Compact RINEX:
-    each line only contains differences from the previous.
-    '''
+    """Parse record headers in Compact RINEX.
+
+    Each line only contains differences from the previous.
+    """
     def __init__(self, baseyear):
         self.data = {}
         self.offsetval = None
@@ -442,13 +433,12 @@ class recordArc(recordLine):
 
 
 class dataArc:
-    '''
-    Numeric records in Compact RINEX are Nth-order differences
-    from previous records.
+    """Numeric records in Compact RINEX are Nth-order differences from previous records.
+
     Difference order is usually 3. Fields are separated by space.
     LLI and STR are kept separately at the end of the line in one character
     each.
-    '''
+    """
     def __init__(self, order=3):
         self.order = order
         self.data = []
@@ -472,10 +462,10 @@ class dataArc:
 
 
 class charArc:
-    '''
-    LLI and STR records in Compact RINEX only record changes from the previous
-    record; space indicates no change.
-    '''
+    """Track an LLI or STR field in Compact RINEX.
+    
+    Only changes from the previous record are given; space indicates no change.
+    """
     def __init__(self):
         self.data = '0'
     def update(self, char):
@@ -485,9 +475,7 @@ class charArc:
 
 
 class obsLine:
-    '''
-    Read observations out of line(s) in a record in a standard RINEX file.
-    '''
+    """Read observations out of line(s) in a record in a standard RINEX file."""
     def update(self, fid):
         self.fid = fid
         self.ind = -1
@@ -508,9 +496,7 @@ class obsLine:
 
 
 class obsArcs:
-    '''
-    Calculate observations out of a line in a record in a compact RINEX file.
-    '''
+    """Calculate observations out of a line in a record in a compact RINEX file."""
     def __init__(self, numobs):
         self.numobs = numobs
         self.arcs = [dataArc() for n in range(numobs)]
@@ -540,7 +526,7 @@ class obsArcs:
 
 
 def get_data(fid, is_crx=None):
-    '''Read data out of a RINEX 2.11 Observation Data File.'''
+    """Read data out of a RINEX 2.11 Observation Data File."""
     obsdata = GPSData()
     obspersat = {}
     rinex = deepcopy(RINEX)  # avoid `seen' records polluting other instances

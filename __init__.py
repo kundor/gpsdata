@@ -1,5 +1,4 @@
-'''
-gpsdata Package: Classes and utilities for GPS Observation data
+"""gpsdata Package: Classes and utilities for GPS Observation data
 
 The main thing provided is the class gpsdata.GPSData, which stores
 pseudoranges, phase, doppler, and SNR for a variety of satellites and
@@ -19,8 +18,7 @@ time.
 
 An IGRF (geomagnetic field model) calculator will be added, as will
 read_nmea() and read_novatel().
-
-'''
+"""
 
 __ver__ = '0.5.0'
 

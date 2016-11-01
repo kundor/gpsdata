@@ -1,6 +1,5 @@
 # Created by Nick Matteo <kundor@kundor.org> June 9, 2009
-'''
-Store observation data from a GPS Receiver
+"""Store observation data from a GPS Receiver
 
 Stores data as provided in RINEX files or other data logs.
 Specifically, store GPS Time, Pseudorange, Phase, Doppler Frequency, and SNR
@@ -12,8 +11,7 @@ for each satellite, and each frequency, observed.
 The GPSData object also holds header information such as satellite system, observer name,
 marker position, times of first and last observations, no. of leap seconds,
 and so forth.
-
-'''
+"""
 # TODO:
 # Hold auxiliary satellite information such as ephemerides (either almanac,
 # broadcast, or precise) to allow satellite position calculation for each
@@ -50,14 +48,13 @@ def showwarn(message, category, filename, lineno, file=sys.stderr, line=None):
 warnings.showwarning = showwarn
 
 class Record(dict):
-    '''
-    A record of observations (many satellites, many channels) at a given epoch.
+    """A record of observations (many satellites, many channels) at a given epoch.
 
     Has fields epoch, powerfail (indicating whether a power failure preceded
     this record) in addition to a dictionary (by PRN code)
     of dictionaries (by RINEX observation code, e.g. C1, L2) of values.
     Can access as record.epoch, record[13], record['G17'], or iteration.
-    '''
+    """ 
     def __init__(self, epoch, **kwargs):
         """Set arbitrary fields by keyword arguments, e.g. motion, powerfail, clockoffset."""
         dict.__init__(self)
@@ -65,10 +62,9 @@ class Record(dict):
         self.__dict__.update(kwargs)
 
     def __getitem__(self, index):
-        '''
-        Allow you to access GPS satellites, eg record['G13'], as
+        """Allow you to access GPS satellites, eg record['G13'], as
         simply record[13].  For GLONASS or Galileo, you must use the full code.
-        '''
+        """
         if index == 'epoch':
             return self.epoch
         if isinstance(index, (int, float)):
@@ -76,35 +72,31 @@ class Record(dict):
         return dict.__getitem__(self, index)
 
     def __contains__(self, index):
-        '''
-        Allow containment tests (eg if 13 in record:) for abbreviated GPS PRNs.
-        '''
+        """Allow containment tests (eg if 13 in record:) for abbreviated GPS PRNs."""
         if isinstance(index, (int, float)):
             return dict.__contains__(self, 'G%02d' % index)
         return dict.__contains__(self, index)
 
     def ptec(self, prn):
-        '''
-        Phase (carrier) TEC, if observations are available.
+        """Phase (carrier) TEC, if observations are available.
 
         Convert cycles of L1, L2 to ns (divide by frequency)
         Then TEC_P (TECU) = (L1(ns) - L2(ns)) * TECU/ns
         1 TECU = 10*16 el / m**2
         Suffers from integer ambiguity (`constant' offset which changes after
         each cycle slip.)  Should be dealt with in `arcs' between cycle slips.
-        '''
+        """
         l1ns = self[prn]['L1']/F1
         l2ns = self[prn]['L2']/F2
         return (l1ns - l2ns) * TECUns
 
     def ctec(self, prn):
-        '''
-        Code (pseudorange) TEC, if observations are available.
+        """Code (pseudorange) TEC, if observations are available.
 
         p(ns) = p(m) / .3; TEC_C (TECU) = (p2(ns) - p1(ns) - HWCAL) * TECU/ns
         HWCAL is the hardware calibration in ns
         Suffers from satellite bias, receiver bias, multipath and noise.
-        '''
+        """
         if 'P1' in self[prn] and 'P2' in self[prn]:
             return (self[prn]['P2'] - self[prn]['P1']) * TECUns/C
         if 'C1' in self[prn] and 'C2' in self[prn]:
@@ -113,12 +105,11 @@ class Record(dict):
             return (self[prn]['P2'] - self[prn]['C1']) * TECUns/C
 
     def badness(self, prn):
-        '''
-        Compute a number indicating how `bad' this record is for TEC
+        """Compute a number indicating how `bad' this record is for TEC
 
         Larger numbers indicate that these measurements are less trustworthy
         and shouldn't be used for the phase vs. carrier averaging computation.
-        '''
+        """
         bad = 0
         if prn not in self:
             return 1000  # Very bad!
@@ -145,12 +136,12 @@ class Record(dict):
 
 
 def ordercheck(maxlen):
-    '''Return a function to check if a list of (start, stop) pairs is in strict order.
+    """Return a function to check if a list of (start, stop) pairs is in strict order.
 
-    Check that no index exceeds maxlen.'''
+    Check that no index exceeds maxlen."""
     cur = [0]
     def ochk(arc):
-        '''Check arc[0] is at or past last seen point, and arc[1] is between arc[0] and maxlen.'''
+        """Check arc[0] is at or past last seen point, and arc[1] is between arc[0] and maxlen."""
         if not isinstance(arc[0], int) or not isinstance(arc[1], int):
             return False
         if not cur[0] <= arc[0] < arc[1] <= maxlen:
@@ -161,24 +152,23 @@ def ordercheck(maxlen):
 
 
 class SatData(list):
-    '''
-    A SatData object is primarily a list of records, one for each epoch.
+    """A SatData object is primarily a list of records, one for each epoch.
 
     The list is in chronological order; each record is a dictionary by satellite id
     of dictionaries by observation code of values.
     SatData.meta['name'] also gives access to some meta information.
-    '''
+    """
     def __init__(self, tzinfo=None, satsystem=None):
         list.__init__(self)
         self.meta = metadict()
-        '''Metadata about the observations, e.g. header information'''
+        """Metadata about the observations, e.g. header information"""
         self.tzinfo = tzinfo
-        '''Time system used (GPS, GLONASS/UTC, Galileo/TAI)'''
+        """Time system used (GPS, GLONASS/UTC, Galileo/TAI)"""
         self.satsystem = satsystem
         self.prns = set()
-        '''All satellites included in this GPSData object.'''
+        """All satellites included in this GPSData object."""
         self.allobs = set()
-        '''All observation types seen in this GPSData object.'''
+        """All observation types seen in this GPSData object."""
 
     def __str__(self):
         out = self.__class__.__name__ + ' object'
@@ -194,22 +184,21 @@ class SatData(list):
     __repr__ = object.__repr__ # don't accidentally print out reams of stuff
 
     def newrecord(self, epoch, **kwargs):
-        '''
-        Append a new record with given args to the SatData list,
-        using correct time system.
-        '''
+        """Append a new record with given args to the SatData list.
+
+        Use correct time system.
+        """
         epoch = getgpstime(epoch, self.tzinfo)
         self.append(Record(epoch, **kwargs))
 
     def add(self, which, prn, obs, val):
-        '''Add an observation value to the given record (which).'''
+        """Add an observation value to the given record (which)."""
         self.prns.add(prn)
         self.allobs.add(obs)
         self[which].setdefault(prn, {})[obs] = val
 
     def iterlist(self, sat=None, obscode=None):
-        '''
-        Returns an iterator over the list of records.
+        """Return an iterator over the list of records.
 
         If a PRN is specified for `sat', iterates over lists of values for
         the given satellite, corresponding to the observation codes in "allobs".
@@ -220,7 +209,7 @@ class SatData(list):
         If an set is provided for either argument, the returned values
         correspond to the sorted order; if a list or tuple is provided, the returned
         values correspond to the given order.
-        '''
+        """
         if isinstance(sat, (list, tuple, set, dict)):
             if not sat:
                 sat = None
@@ -267,15 +256,14 @@ class SatData(list):
                 yield record[sat][obscode]
 
     def iterdict(self, sat=None, obscode=None):
-        '''
-        Returns an iterator over the list of records.
+        """Return an iterator over the list of records.
 
         If a PRN is specified for `sat', iterates over dictionaries of
         obscode : value for the given satellite.
         If an observation code is specified for `obscode', iterates over
         dictionaries of prn : value for the given observation type.
         If both are specified, iterates over values.
-        '''
+        """
         if isinstance(sat, (list, tuple, set, dict)):
             if not sat:
                 sat = None
@@ -330,14 +318,13 @@ class SatData(list):
                 yield record[sat][obscode]
 
     def obscodes(self, which=-1):
-        '''Return (current) list of observation codes stored in this SatData.'''
+        """Return (current) list of observation codes stored in this SatData."""
         if 'obscodes' not in self.meta:
             raise RuntimeError('File did not define data records')
         return self.meta.obscodes[which]
 
     def timesetup(self):
-        '''
-        Prepares time systems after headers are parsed.
+        """Prepare time system after headers are parsed.
 
         After parsing the initial header of a RINEX file,
         timesetup figures out the time system to use (GPS, UTC, or TAI)
@@ -346,8 +333,7 @@ class SatData(list):
         recorded in meta.firsttime and meta.lasttime, if any,
         and returns a `base year' for the purpose of disambiguating
         the observation records (which have 2-digit year.)
-
-        '''
+        """
         if self.satsystem is None and 'satsystem' in self.meta:
             self.satsystem = self.meta.satsystem
         if self.satsystem == 'R':  # GLONASS uses UTC
@@ -382,13 +368,12 @@ class SatData(list):
         return baseyear
 
     def check(self, obspersat, intervals):
-        '''
-        Validates or supplies RINEX headers which the reader can determine
+        """Validate or supply RINEX headers which the reader can determine.
 
-        Checks RINEX header information, if supplied, against information
-        obtained from reading the file.  Fills in the header information
+        Check RINEX header information, if supplied, against information
+        obtained from reading the file.  Fill in the header information
         if it wasn't supplied.
-        '''
+        """
         # TODO: check markerpos (APPROX POSITION XYZ) against position solution
         if not len(self):
             warn('Empty GPSData generated')
@@ -470,10 +455,7 @@ class SatData(list):
             self.prns = set(obspersat)
 
     def header_info(self):
-        '''
-        Returns a string with some summarizing information from the
-        observation data file headers.
-        '''
+        """Return a string summarizing information from the observation data file headers."""
         if 'filename' in self.meta:
             hstr = 'File:\t\t\t' + self.meta.filename + '\n'
         else:
@@ -516,26 +498,26 @@ class GPSData(SatData):
         # phase-connected arcs
 
     def newrecord(self, epoch, **kwargs):
-        '''Append new record with given args to the GPSData list, using correct time system.'''
+        """Append new record with given args to the GPSData list, using correct time system."""
         epoch = getgpstime(epoch, self.tzinfo)
         self.append(Record(epoch, motion=self.inmotion, **kwargs))
 
     def add(self, which, prn, obs, val):
-        '''Add observation value to the given record, while helping track phase-connected arcs.'''
+        """Add observation value to the given record, while helping track phase-connected arcs."""
         super().add(which, prn, obs, val)
         if val.lostlock:
             self.breakphase(prn)
 
     def endphase(self, prn):
-        '''End current phase-connected-arc, if any, for satellite prn.
+        """End current phase-connected-arc, if any, for satellite prn.
 
         Ends arc just before the current record.
-        '''
+        """
         if prn in self.phasearcs and self.phasearcs[prn][-1][1] is None:
             self.phasearcs[prn][-1][1] = len(self) - 1
 
     def breakphase(self, prn):
-        '''Begin new phase-connected-arc for satellite prn.'''
+        """Begin new phase-connected-arc for satellite prn."""
         if isinstance(prn, (list, tuple, set, dict)):
             for p in prn:
                 self.breakphase(p)
@@ -546,11 +528,11 @@ class GPSData(SatData):
             self.phasearcs[prn] += [[len(self) - 1, None]]
 
     def checkbreak(self):
-        '''Check whether a cycle slip may have occurred for any satellites.
+        """Check whether a cycle slip may have occurred for any satellites.
 
         Checks at last record added.  This should be called for each record
         inserted, after all its values have been added.
-        '''
+        """
         # TODO: Auto-detect when records have filled all observations for all
         # prns
         if not self:
@@ -601,9 +583,9 @@ class GPSData(SatData):
             #     self.phasearcs[prn][idx][1] = which
 
     def sanearcs(self):
-        '''Ensures that the phase-connected arcs list is in strict order,
+        """Ensure that the phase-connected arcs list is in strict order,
         without overlaps or missing measurements.
-        '''
+        """
         for prn, arclist in self.phasearcs.items():
             if not arclist:
                 self.phasearcs.pop(prn)
@@ -637,15 +619,14 @@ class GPSData(SatData):
                 arclist.pop(k)
 
     def calctec(self):
-        '''
-        Calculate slant uncalibrated TEC and append as observation to records
+        """Calculate slant uncalibrated TEC and append as observation to records
 
         TEC from carrier phase (L1, L2) is smooth but ambiguous.
         TEC from code (pseudorange) (C1, C2) or encrypted code (P1, P2) is
         absolute but noisy.  Phase data needs to be fitted to pseudorange data.
         This function calculates the TEC for each PRN in each record, where
         possible.
-        '''
+        """
         self.sanearcs()
         for prn, arclist in self.phasearcs.items():
             for arc in arclist:

@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # Created by Nick Matteo <kundor@kundor.org> July 15, 2009
-'''
-Read GPS observations in from a file, creating a GPSData object.
+"""Read GPS observations in from a file, creating a GPSData object.
 
 read_file(URL) supports local files, http, ftp, gzipped, tarred, etc.
 Currently, only RINEX observation files, or Hatanaka-compressed ones,
@@ -9,7 +8,7 @@ are supported.
 Command-line operation works also; after parsing, some summary
 information is printed, and optionally the GPSData objects can be
 saved to a pickle file.
-'''
+"""
 # TODO:  read novatel logs; read NMEA; read RTCM
 
 import os
@@ -32,12 +31,12 @@ except ImportError:
     pass
 
 def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
-    '''Process URL into a GPSData object.
+    """Process URL into a GPSData object.
 
     Deals with local files, http, or ftp; gzipped files; and single-file
     tar archives.  Then simplistic extension-based format detection is used,
     unless the argument `format' is supplied.
-    '''
+    """
     if os.path.isfile(URL):
         filename = URL
         if verbose:
@@ -95,10 +94,10 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
 
 
 def index(req, n_file, n_type):
-    '''Read GPS observation data and show summary or TEC plot.
+    """Read GPS observation data and show summary or TEC plot.
 
     This function is called for mod_python in a web server (apache).
-    '''
+    """
     database = '/web/gps/data/'
     filedate = time.strptime(n_file[5:11], '%y%m%d')
     url = os.path.join(database, n_file[0:4], str(filedate.tm_year), n_file[7:9],
@@ -118,9 +117,7 @@ def index(req, n_file, n_type):
             req.write(f.getvalue())
 
 def main():
-    '''Read GPS observation data, downloading, gunzipping, and uncompressing
-    as necessary.
-    '''
+    """Read GPS observation data, downloading, gunzipping, and uncompressing as necessary."""
     usage = sys.argv[0] + ' [-hvVgtGT] [-f FORMAT]'
     if 'plotter' in dir():
         usage = usage + ' [-i OBSERVATION]'

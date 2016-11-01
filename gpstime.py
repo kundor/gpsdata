@@ -1,6 +1,5 @@
 # Created by Nick Matteo <kundor@kundor.org> June 9, 2009
-'''
-Defines timezones (tzinfo inheritors) useful for GPS work.
+"""Timezones (tzinfo inheritors) and utility functions useful for GPS work.
 
 UTCOffset(timedelta offset) is a time zone at a constant offset from UTC.
 `utctz' is an instantiation of UTCOffset with no offset.
@@ -12,7 +11,7 @@ LeapSeconds.update() is a class method to update the leap seconds information.
 `leapseconds' is an instantiation of the leap second dictionary.
 
 NB: Standard Python datetime objects are only precise to 1 microsecond.
-'''
+"""
 # These classes do NOT account for:
 #  - Difference in GPS time vs. UTC(USNO) (Currently sync'd once per day.)
 #  - Difference in UTC(USNO) vs. UTC (sync'd about once a month.)
@@ -40,17 +39,20 @@ URL2 = 'http://hpiers.obspm.fr/iers/bul/bulc/UTC-TAI.history'
 GPSepoch = datetime(1980, 1, 6, 0, 0, 0, 0, timezone.utc)
 
 def isnaive(dt):
-    '''Return true if input is a naive datetime.'''
+    """Return true if input is a naive datetime."""
     return isinstance(dt, datetime) and (dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None)
 
 def dhours(hrs):
-    '''Convenience function: returns timedelta of given # of hours.'''
+    """Convenience function: returns timedelta of given # of hours."""
     return timedelta(hours=hrs)
 
 def getutctime(dt=None, dtclass=datetime, tz=timezone.utc):
-    """Convert datetime, struct_time, tuple (Y,M,D,[H,M,S,μS]), or POSIX timestamp
-    to UTC aware datetime object. Assumed to already be UTC unless the timezone
-    is included (aware datetime objects and struct_times).
+    """Convert time to a UTC-aware datetime object.
+    
+    Accepts datetime, struct_time, tuple (Y,M,D,[H,M,S,μS]), tuple (GPS week,
+    GPS second of week) or POSIX timestamp.
+    Input is assumed to already be UTC unless the timezone is included (aware
+    datetime objects and struct_times).
     """
     if dt is None:
         return dtclass.now(tz)
@@ -78,18 +80,17 @@ def gpsdow(dt):
     return (dt + timedelta(seconds=gpsleapsecsutc(dt))).isoweekday() % 7
 
 class LeapSeconds(dict):
-    '''
-    Uses data file (leapseco.dat, in same directory as the code)
-    to form a dictionary of datetimes : leap second adjustment.
-    TAI differs from UTC by the adjustment at the latest datetime
-    before the given epoch.
-    NB: For dates before 1972, there is secular variation in the
-    adjustment, which is NOT accounted for.
-    '''
+    """A dictionary of datetimes : leap second adjustment.
+
+    Uses data file leapseco.dat, in same directory as the code.
+    TAI differs from UTC by the adjustment at the latest datetime before the given epoch.
+    NB: For dates before 1972, there is secular variation in the adjustment,
+    which is NOT accounted for.
+    """
     infofile = path.join(path.dirname(path.abspath(__file__)), 'leapseco.dat')
 
     def __init__(self):
-        '''Load and parse leap seconds data file.'''
+        """Load and parse leap seconds data file."""
         dict.__init__(self)
         try:
             lfile = open(self.infofile)
@@ -108,11 +109,10 @@ class LeapSeconds(dict):
 
     @classmethod
     def timetoupdate(cls):
-        '''
-        Attempts to verify whether January 1 or July 1 has passed since
-        last update; otherwise, don't bother (new leap seconds only occur
-        on those dates.)
-        '''
+        """Attempt to verify whether January 1 or July 1 has passed since last update.
+        
+        Otherwise, don't bother updating (new leap seconds only occur on those dates.)
+        """
         now = datetime.utcnow()
         if not os.access(cls.infofile, os.R_OK):
             return True  # If file isn't there, try update
@@ -140,10 +140,7 @@ class LeapSeconds(dict):
 
     @classmethod
     def update(cls):
-        '''
-        Download and parse new leap second information from reliable
-        web sources.
-        '''
+        """Download and parse new leap second information from reliable web sources."""
         if not cls.timetoupdate():
             print('No potential leap second has occurred since last update.')
             return False
@@ -187,8 +184,11 @@ class LeapSeconds(dict):
 leapseconds = LeapSeconds()
 
 def leapsecs(dt, cmp):
-    '''# of leapseconds at datetime dt.  Whether dt exceeds the UTC time in
-    the leapseconds dict is determined by the provided function cmp.'''
+    """# of leapseconds at datetime dt.
+    
+    Whether dt exceeds the UTC time in the leapseconds dict is determined by
+    the provided function cmp.
+    """
     dt = dt.replace(tzinfo=None)
     if dt.year < 1958:
         raise ValueError('TAI vs UTC is unclear before 1958; unsupported.')
@@ -198,19 +198,19 @@ def leapsecs(dt, cmp):
         return 0 # before 1961-Jan-01, TAI = UTC
 
 def leapsecsutc(utc):
-    '''# of TAI-UTC leapseconds at UTC datetime.'''
+    """# of TAI-UTC leapseconds at UTC datetime."""
     return leapsecs(utc, lambda l, dt : l <= dt)
 
 def gpsleapsecsutc(utc):
-    '''# of GPS-UTC leapseconds at UTC datetime.'''
+    """# of GPS-UTC leapseconds at UTC datetime."""
     return leapsecs(utc, lambda l, dt : l <= dt) - 19
 
 def leapsecstai(tai):
-    '''# of TAI-UTC leapseconds at TAI datetime.'''
+    """# of TAI-UTC leapseconds at TAI datetime."""
     return leapsecs(tai, lambda l, dt : leapseconds[l] <= (dt - l).total_seconds())
 
 class UTCOffset(TZInfo):
-    '''UTC: Coordinated Universal Time; with optional constant offset'''
+    """UTC: Coordinated Universal Time; with optional constant offset"""
 
     def __init__(self, offset=timedelta(0), name=None):
         self.offset = offset
@@ -240,9 +240,7 @@ class UTCOffset(TZInfo):
 utctz = UTCOffset()
 
 class TAIOffset(UTCOffset):
-    '''
-    TAI: International Atomic Time.  utcoffset() is number of leap seconds.
-    '''
+    """TAI: International Atomic Time.  utcoffset() is number of leap seconds."""
     # For GPS we deal with TAI(USNO) and UTC(USNO).
 
     def __init__(self, offset=timedelta(0), name='TAI'):
@@ -257,7 +255,7 @@ class TAIOffset(UTCOffset):
         return timedelta(seconds=off) + self.offset
 
     def fromutc(self, dt):
-        '''Given `dt' in UTC, return the same time in this timezone.'''
+        """Given `dt' in UTC, return the same time in this timezone."""
         return dt + self.utcoffset(dt.replace(tzinfo=utctz))
 
 taitz = TAIOffset()
@@ -269,11 +267,12 @@ def getgpstime(dt=None, tz=gpstz):
     return getutctime(dt, gpsdatetime, tz)
 
 class gpsdatetime(datetime):
-    '''
+    """gpsdatetime(year, month, day, hour, minute, second, microsecond, tzinfo)
+
     gpsdatetime is simply a version of datetime.datetime which allows
     the offset from UTC to not be in whole minutes.
     It also sets tzinfo to gpstz by default, instead of None.
-    '''
+    """
     def __new__(cls, year=1980, month=1, day=6, hour=0, minute=0, second=0,
                 microsecond=0, tzinfo=gpstz):
         if isinstance(year, str) and isinstance(month, TZInfo):
@@ -285,19 +284,18 @@ class gpsdatetime(datetime):
 
     @classmethod
     def copydt(cls, other, tzinfo=None):
-        '''Copy a standard datetime object into a gpsdatetime,
-        optionally replacing tzinfo.
-        '''
+        """Copy a standard datetime object into a gpsdatetime, optionally replacing tzinfo."""
         if tzinfo is None:
             tzinfo = other.tzinfo
         return cls.__new__(cls, other.year, other.month, other.day, other.hour,
                            other.minute, other.second, other.microsecond, tzinfo)
 
     def utcoffset(self):
-        '''
+        """Return self.tzinfo.utcoffset(self)
+        
         Should be identical to datetime.utcoffset() besides allowing
         tzinfo.utcoffset() to not be in whole minutes.
-        '''
+        """
         if self.tzinfo is None:
             return None
         off = self.tzinfo.utcoffset(self)
@@ -310,21 +308,21 @@ class gpsdatetime(datetime):
         return off
 
     def astimezone(self, tz):
-        '''Return equivalent time for timezone tz.'''
+        """Return equivalent time for timezone tz."""
         dt = self.replace(tzinfo=None)
         dt = dt - self.utcoffset()
         dt = dt + tz.utcoffset(dt.replace(tzinfo=utctz))
         return dt.replace(tzinfo=tz)
 
     def __add__(self, other):
-        '''Add timedelta to gpsdatetime.'''
+        """Add timedelta to gpsdatetime."""
         crn = datetime.__add__(self.replace(tzinfo=None), other)
         return self.copydt(crn, self.tzinfo)
 
     def __sub__(self, other):
-        '''Subtract other gpsdatetime or datetime to produce timedelta,
+        """Subtract other gpsdatetime or datetime to produce timedelta,
         or subtract timedelta to produce gpsdatetime.
-        '''
+        """
         if isinstance(other, datetime):
             if self.utcoffset() is None and other.utcoffset() is None:
                 return datetime.__sub__(self, other)

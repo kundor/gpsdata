@@ -1,8 +1,7 @@
-'''Miscellaneous classes which are of use in gpsdata, particularly in rinex.py.
+"""Miscellaneous classes which are of use in gpsdata, particularly in rinex.py.
 
 These are not very specific in usage, however, and could be useful anywhere.
-
-'''
+"""
 from contextlib import suppress, redirect_stdout, contextmanager
 import subprocess
 import os
@@ -52,10 +51,10 @@ typedict = {}
 # Declaring classes is really slow, so we reuse them.
 
 def value(thing, **kwargs):
-    '''Ensure that arbitrary attributes can be set on `thing'.
+    """Ensure that arbitrary attributes can be set on `thing'.
 
     E.g. foo = value(foo); foo.bar = 'qux'
-    '''
+    """
     if hasattr(thing, '__dict__'):
         pass
     elif type(thing) in typedict:
@@ -70,14 +69,15 @@ def value(thing, **kwargs):
 
 
 class listvalue(dict):
-    '''
-    Store values as specified in a RINEX header which have validity
-    for a range of records, but may be replaced.
-    Allows accessing by record number, eg marker[456] returns
+    """Store values which have validity over a range of keys.
+
+    Allow access by any key in the range, eg marker[456] returns
     the marker information which was valid for record 456.
+    Intended for values specified in a RINEX header which have validity
+    for a range of records, but may be replaced.
     For convenience, listvalue[0] always returns the first definition
     and listvalue[-1] always returns the last.
-    '''
+    """
     def __getitem__(self, index):
         if index == 0:
             index = min(self)
@@ -94,10 +94,11 @@ class listvalue(dict):
 
 
 class metadict(dict):
-    '''A dictionary for RINEX header values.
+    """A dictionary for RINEX header values.
+
     Add a `numblocks' property (for the number of discontiguous header blocks)
     and field access for meta['name'] by meta.name.
-    '''
+    """
     def __init__(self, *args, **kwargs):
         self.numblocks = 0
         dict.__init__(self, *args, **kwargs)
@@ -109,17 +110,18 @@ class metadict(dict):
 
 
 class fileread(object):
-    '''
+    """A line-counting file wrapper.
+
     Wrap "sufficiently file-like objects" (ie those with readline())
     in an iterable which counts line numbers, strips newlines, and raises
     StopIteration at EOF.
-    '''
+    """
     def __new__(cls, file):
-        '''Create a fileread object.
+        """Create a fileread object.
 
         Input can be filename string, file descriptor number, or any object
         with `readline'.
-        '''
+        """
         if isinstance(file, fileread):
             file.reset()
             return file
@@ -149,7 +151,7 @@ class fileread(object):
         self.close()
 
     def next(self):
-        '''Return the next line, also incrementing `lineno'.'''
+        """Return the next line, also incrementing `lineno'."""
         line = self.fid.readline()
         if not line:
             raise StopIteration()
@@ -159,7 +161,7 @@ class fileread(object):
     __next__ = next
 
     def readline(self):
-        '''A synonym for next() which doesn't strip newlines or raise StopIteration.'''
+        """A synonym for next() which doesn't strip newlines or raise StopIteration."""
         line = self.fid.readline()
         if line:
             self.lineno += 1
@@ -169,14 +171,14 @@ class fileread(object):
         return self
 
     def reset(self):
-        '''Go back to the beginning if possible. Set lineno to 0 regardless.'''
+        """Go back to the beginning if possible. Set lineno to 0 regardless."""
         if hasattr(self.fid, 'seek'):
             with suppress(OSError):
                 self.fid.seek(0)
         self.lineno = 0
 
     def close(self):
-        '''Close the file.  A closed file cannot be used for further I/O.'''
+        """Close the file.  A closed file cannot be used for further I/O."""
         if hasattr(self.fid, 'fileno') and self.fid.fileno() < 3:
             # Closing stdin, stdout, stderr can be bad
             return

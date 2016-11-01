@@ -1,4 +1,4 @@
-'''Utilities to produce plots of a given observation from GPSData objects.'''
+"""Utilities to produce plots of a given observation from GPSData objects."""
 
 from os import environ, path
 from itertools import count
@@ -8,16 +8,14 @@ from matplotlib.cm import spectral as cmap
 from matplotlib.colors import Normalize
 
 statfile = path.join(path.dirname(path.abspath(__file__)), 'stations.dat')
-'''File with data mapping marker names in RINEX files to full locations.'''
+"""File with data mapping marker names in RINEX files to full locations."""
 
 stations = []
 for line in open(statfile):
     stations += [line.split(',')]
 
 def match(station):
-    '''Given prefix string `station', find full name and country of the
-    observation station.
-    '''
+    """Given prefix string `station', find full name and country of the observation station."""
     for stat in stations:
         if station in stat[:3]:
             return stat[7].upper() + ', ' + stat[8]
@@ -25,14 +23,14 @@ def match(station):
 
 
 def colorplot(ax, X, Y, C, label=None, numlabs=4):
-    '''Plot data in array X vs. array Y with points colored by C (on axis ax)
+    """Plot data in array X vs. array Y with points colored by C (on axis ax)
 
     X, Y, and C must be arrays (or lists, tuples) and have the same length;
     C can be matplotlib character colors, names, hex strings, RGB tuples.
     If C is only 1d float values, it will be treated as a z-axis and mapped
     to the default colormap.
     label, if defined, is text to be periodically placed on the line.
-    '''
+    """
     # That means normalizing to 0-1 and using matplotlib.colors.Colormap
     if isinstance(C[0], (float, int)):
         nm = Normalize(min(C), max(C))
@@ -45,9 +43,10 @@ def colorplot(ax, X, Y, C, label=None, numlabs=4):
 
 
 def plot(gdo, obs, fname=None):
-    '''Given GPSData object `gdo', plot observation `obs' against time of day
-    for all satellites.  Save to file `fname', or display if None.
-    '''
+    """Plot observation `obs' from GPSData object `gdo' against time of day for all satellites.
+    
+    Save to file `fname', or display if None.
+    """
     if fname == 'web':
         # Set environment variable HOME for use with a web server
         environ['HOME'] = '/var/www/mpl/'
