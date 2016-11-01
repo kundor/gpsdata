@@ -58,12 +58,11 @@ class Record(dict):
     of dictionaries (by RINEX observation code, e.g. C1, L2) of values.
     Can access as record.epoch, record[13], record['G17'], or iteration.
     '''
-    def __init__(self, epoch=gpsdatetime(), motion=False, powerfail=False, clockoffset=0.):
+    def __init__(self, epoch, **kwargs):
+        """Set arbitrary fields by keyword arguments, e.g. motion, powerfail, clockoffset."""
         dict.__init__(self)
         self.epoch = epoch
-        self.motion = motion
-        self.powerfail = powerfail
-        self.clockoffset = clockoffset
+        self.__dict__.update(kwargs)
 
     def __getitem__(self, index):
         '''
@@ -161,13 +160,13 @@ def ordercheck(maxlen):
     return ochk
 
 
-class GPSData(list):
+class SatData(list):
     '''
-    A GPSData object is primarily a list of records, one for each epoch.
+    A SatData object is primarily a list of records, one for each epoch.
 
-    In chronological order; each record is a dictionary by satellite id
+    The list is in chronological order; each record is a dictionary by satellite id
     of dictionaries by observation code of values.
-    GPSData.meta['name'] also gives access to RINEX header values.
+    SatData.meta['name'] also gives access to some meta information.
     '''
     def __init__(self, tzinfo=None, satsystem=None):
         list.__init__(self)
@@ -180,13 +179,9 @@ class GPSData(list):
         '''All satellites included in this GPSData object.'''
         self.allobs = set()
         '''All observation types seen in this GPSData object.'''
-        self.inmotion = False
-        self.phasearcs = {}
-        # a dictionary by PRN of (start, stop) indices delimiting
-        # phase-connected arcs
 
     def __str__(self):
-        out = 'GPSData object'
+        out = self.__class__.__name__ + ' object'
         if 'filename' in self.meta:
             out += ' read from file ' + self.meta.filename
         out += ' with observations ' + ', '.join(self.allobs)
@@ -198,151 +193,19 @@ class GPSData(list):
 
     __repr__ = object.__repr__ # don't accidentally print out reams of stuff
 
-    def newrecord(self, *args, **kwargs):
+    def newrecord(self, epoch, **kwargs):
         '''
-        Append a new record with given args to the GPSData list,
+        Append a new record with given args to the SatData list,
         using correct time system.
         '''
-        if 'epoch' in kwargs:
-            epoch = kwargs.pop('epoch')
-        elif args:
-            epoch = args[0]
-            args = args[1:]
-        else:
-            epoch = None
-        if isinstance(epoch, gpsdatetime):
-            epoch = epoch.replace(tzinfo=self.tzinfo)
-        elif isinstance(epoch, datetime):
-            epoch = gpsdatetime.copydt(epoch, self.tzinfo)
-        elif isinstance(epoch, (tuple, list)):
-            epoch = gpsdatetime(*epoch).replace(tzinfo=self.tzinfo)
-        elif epoch is None:
-            epoch = gpsdatetime(tzinfo=self.tzinfo)
-        else:
-            raise ValueError('First argument must be the gpsdatetime epoch '
-                             'of the record.')
-        self.append(Record(epoch, self.inmotion, *args, **kwargs))
+        epoch = getgpstime(epoch, self.tzinfo)
+        self.append(Record(epoch, **kwargs))
 
     def add(self, which, prn, obs, val):
-        '''
-        Add an observation value to the given record (which).
-
-        Helps track phase-connected arcs.
-        '''
+        '''Add an observation value to the given record (which).'''
         self.prns.add(prn)
         self.allobs.add(obs)
         self[which].setdefault(prn, {})[obs] = val
-        if val.lostlock:
-            self.breakphase(prn)
-
-    def endphase(self, prn):
-        '''End current phase-connected-arc, if any, for satellite prn.
-
-        Ends arc just before the current record.'''
-        if prn in self.phasearcs and self.phasearcs[prn][-1][1] is None:
-            self.phasearcs[prn][-1][1] = len(self) - 1
-
-    def breakphase(self, prn):
-        '''Begin new phase-connected-arc for satellite prn.'''
-        if isinstance(prn, (list, tuple, set, dict)):
-            for p in prn:
-                self.breakphase(p)
-        elif prn not in self.phasearcs:
-            self.phasearcs[prn] = [[len(self) - 1, None]]
-        else:
-            self.endphase(prn)
-            self.phasearcs[prn] += [[len(self) - 1, None]]
-
-    def checkbreak(self):
-        '''Check whether a cycle slip may have occurred for any satellites.
-
-        Checks at last record added.  This should be called for each record
-        inserted, after all its values have been added.
-        '''
-        # TODO: Auto-detect when records have filled all observations for all
-        # prns
-        if not self:
-            return
-        if len(self) == 1:
-            for prn in self[0]:
-                if self[0].badness(prn) < 100 and prn not in self.phasearcs:
-                    self.phasearcs[prn] = [[0, None]]
-            return
-        if self[-1].powerfail:
-            self.breakphase(self.prns)
-            return
-        for prn in set(self[-1]).union(self.phasearcs):
-            bad = self[-1].badness(prn)
-            if bad < 100 and prn not in self.phasearcs:
-                self.phasearcs[prn] = [[len(self) - 1, None]]
-                continue
-            if bad < 100 and self.phasearcs[prn][-1][1] is not None:
-                self.phasearcs[prn] += [[len(self) - 1, None]]
-                continue
-            if prn not in self.phasearcs or self.phasearcs[prn][-1][1] is not None:
-                continue  # It's bad, but nothing to break
-            if bad > 100:
-                # This satellite missed an observation! Must be slip!
-                # print 'whoa imposs', prn, which
-                self.phasearcs[prn][-1][1] = len(self) - 1
-                continue
-            # if `differential carrier phase' ptec changes by more than 8
-            # L2 cycles in 30 seconds (our standard interval), there is almost
-            # certainly a cycle slip.  (L2 per TECU is 2.3254, Carrano 08)
-            # TODO: scale the boundary for different intervals
-            if prn in self[len(self) - 2]:
-                slip = abs(self[-1].ptec(prn) - self[len(self) - 2].ptec(prn))
-                if slip > 8 / 2.3254:
-                    # print 'whoa cycle slippage', prn, which, slip
-                    self.breakphase(prn)
-            elif (prn in self.phasearcs and
-                  self.phasearcs[prn][-1][0] < len(self) - 1 and
-                  self.phasearcs[prn][-1][1] is None):
-                self.phasearcs[prn][-1][1] = len(self) - 2
-            # try:
-            #     idx = max([k for k in range(len(self.phasearcs[prn])) if
-            #               self.phasearcs[prn][k][0] <= which])
-            # except ValueError:
-            #     continue
-            # oldend = self.phasearcs[prn][idx][1]
-            # if oldend is None or oldend > which:
-            #     self.phasearcs[prn][idx][1] = which
-
-    def sanearcs(self):
-        '''Ensures that the phase-connected arcs list is in strict order,
-        without overlaps or missing measurements.
-        '''
-        for prn, arclist in self.phasearcs.items():
-            if not arclist:
-                self.phasearcs.pop(prn)
-                continue
-            if arclist[-1][1] is None:
-                arclist[-1][1] = len(self)
-            ocheck = ordercheck(len(self))
-            self.phasearcs[prn] = arclist = [a for a in arclist if ocheck(a)]
-            poplist = []  # indices to remove
-            for k, arc in enumerate(arclist):
-                good = True
-                numgood = [0, 0, 0, 0, 0]
-                for rec in range(arc[0], arc[1]):
-                    bad = self[rec].badness(prn)
-                    if bad > 100 and good:
-                        good = False
-                        oldend = arc[1]
-                        arc[1] = rec
-                    elif bad < 100 and not good:
-                        arclist.insert(k + 1, [rec, oldend])
-                        break  # process this arc in the next step
-                    if good and bad < 5:
-                        numgood[bad] += 1
-                if numgood[0] + numgood[1] < MINGOOD:
-                    poplist += [k]
-                elif len(arc) > 2:
-                    arc[2] = numgood
-                else:
-                    arc.append(numgood)
-            for k in poplist[::-1]:
-                arclist.pop(k)
 
     def iterlist(self, sat=None, obscode=None):
         '''
@@ -467,52 +330,10 @@ class GPSData(list):
                 yield record[sat][obscode]
 
     def obscodes(self, which=-1):
-        '''
-        Return (current) list of observation codes stored in this GPSData.
-        '''
+        '''Return (current) list of observation codes stored in this SatData.'''
         if 'obscodes' not in self.meta:
-            raise RuntimeError('RINEX file did not define data records')
+            raise RuntimeError('File did not define data records')
         return self.meta.obscodes[which]
-
-    def calctec(self):
-        '''
-        Calculate slant uncalibrated TEC and append as observation to records
-
-        TEC from carrier phase (L1, L2) is smooth but ambiguous.
-        TEC from code (pseudorange) (C1, C2) or encrypted code (P1, P2) is
-        absolute but noisy.  Phase data needs to be fitted to pseudorange data.
-        This function calculates the TEC for each PRN in each record, where
-        possible.
-        '''
-        self.sanearcs()
-        for prn, arclist in self.phasearcs.items():
-            for arc in arclist:
-                # We examine each value for `badness'.  We want at least 16
-                # values with badness < 2 to compute our average.
-                # The average does not include:
-                #  - Any values with badness > 4
-                #  - The worst 20% of the values, if their badness > 1
-                targ = (arc[1] - arc[0]) / 5
-                # we will omit at most `targ' bad measurements
-                leftout = (arc[1] - arc[0]) - sum(arc[2])
-                bound = 5
-                # we can omit records worse than this without exceeding targ
-                while leftout < targ and bound:
-                    bound -= 1
-                    leftout += arc[2][bound]
-                arcavg = 0.  # sum CTEC - PTEC over good members
-                arcnum = 0.
-                for s in range(arc[0], arc[1]):
-                    bad = self[s].badness(prn)
-                    if bad <= bound:
-                        arcavg += (self[s].ctec(prn) - self[s].ptec(prn))
-                        arcnum += 1.
-                arcavg = arcavg / arcnum
-                for s in range(arc[0], arc[1]):
-                    self[s][prn]['TEC'] = self[s].ptec(prn) + arcavg
-        # TODO: download and apply satellite corrections from CODE
-        #  (ftp://ftp.unibe.ch/aiub/CODE/)
-        # Scale to VTEC
 
     def timesetup(self):
         '''
@@ -647,7 +468,6 @@ class GPSData(list):
                     self.meta.obsnumpersatellite[prn] += [obspersat[prn][obs]]
         if self.prns is None:
             self.prns = set(obspersat)
-        self.calctec()
 
     def header_info(self):
         '''
@@ -685,3 +505,177 @@ class GPSData(list):
             hstr += '\n' + prn + '\t'
             hstr += '\t'.join(['%5d' % num for num in counts])
         return hstr
+
+
+class GPSData(SatData):
+    def __init__(self, tzinfo=None, satsystem=None):
+        SatData.__init__(self, tzinfo, satsystem)
+        self.inmotion = False
+        self.phasearcs = {}
+        # a dictionary by PRN of (start, stop) indices delimiting
+        # phase-connected arcs
+
+    def newrecord(self, epoch, **kwargs):
+        '''Append new record with given args to the GPSData list, using correct time system.'''
+        epoch = getgpstime(epoch, self.tzinfo)
+        self.append(Record(epoch, motion=self.inmotion, **kwargs))
+
+    def add(self, which, prn, obs, val):
+        '''Add observation value to the given record, while helping track phase-connected arcs.'''
+        super().add(which, prn, obs, val)
+        if val.lostlock:
+            self.breakphase(prn)
+
+    def endphase(self, prn):
+        '''End current phase-connected-arc, if any, for satellite prn.
+
+        Ends arc just before the current record.
+        '''
+        if prn in self.phasearcs and self.phasearcs[prn][-1][1] is None:
+            self.phasearcs[prn][-1][1] = len(self) - 1
+
+    def breakphase(self, prn):
+        '''Begin new phase-connected-arc for satellite prn.'''
+        if isinstance(prn, (list, tuple, set, dict)):
+            for p in prn:
+                self.breakphase(p)
+        elif prn not in self.phasearcs:
+            self.phasearcs[prn] = [[len(self) - 1, None]]
+        else:
+            self.endphase(prn)
+            self.phasearcs[prn] += [[len(self) - 1, None]]
+
+    def checkbreak(self):
+        '''Check whether a cycle slip may have occurred for any satellites.
+
+        Checks at last record added.  This should be called for each record
+        inserted, after all its values have been added.
+        '''
+        # TODO: Auto-detect when records have filled all observations for all
+        # prns
+        if not self:
+            return
+        if len(self) == 1:
+            for prn in self[0]:
+                if self[0].badness(prn) < 100 and prn not in self.phasearcs:
+                    self.phasearcs[prn] = [[0, None]]
+            return
+        if self[-1].powerfail:
+            self.breakphase(self.prns)
+            return
+        for prn in set(self[-1]).union(self.phasearcs):
+            bad = self[-1].badness(prn)
+            if bad < 100 and prn not in self.phasearcs:
+                self.phasearcs[prn] = [[len(self) - 1, None]]
+                continue
+            if bad < 100 and self.phasearcs[prn][-1][1] is not None:
+                self.phasearcs[prn] += [[len(self) - 1, None]]
+                continue
+            if prn not in self.phasearcs or self.phasearcs[prn][-1][1] is not None:
+                continue  # It's bad, but nothing to break
+            if bad > 100:
+                # This satellite missed an observation! Must be slip!
+                # print 'whoa imposs', prn, which
+                self.phasearcs[prn][-1][1] = len(self) - 1
+                continue
+            # if `differential carrier phase' ptec changes by more than 8
+            # L2 cycles in 30 seconds (our standard interval), there is almost
+            # certainly a cycle slip.  (L2 per TECU is 2.3254, Carrano 08)
+            # TODO: scale the boundary for different intervals
+            if prn in self[len(self) - 2]:
+                slip = abs(self[-1].ptec(prn) - self[len(self) - 2].ptec(prn))
+                if slip > 8 / 2.3254:
+                    # print 'whoa cycle slippage', prn, which, slip
+                    self.breakphase(prn)
+            elif (prn in self.phasearcs and
+                  self.phasearcs[prn][-1][0] < len(self) - 1 and
+                  self.phasearcs[prn][-1][1] is None):
+                self.phasearcs[prn][-1][1] = len(self) - 2
+            # try:
+            #     idx = max([k for k in range(len(self.phasearcs[prn])) if
+            #               self.phasearcs[prn][k][0] <= which])
+            # except ValueError:
+            #     continue
+            # oldend = self.phasearcs[prn][idx][1]
+            # if oldend is None or oldend > which:
+            #     self.phasearcs[prn][idx][1] = which
+
+    def sanearcs(self):
+        '''Ensures that the phase-connected arcs list is in strict order,
+        without overlaps or missing measurements.
+        '''
+        for prn, arclist in self.phasearcs.items():
+            if not arclist:
+                self.phasearcs.pop(prn)
+                continue
+            if arclist[-1][1] is None:
+                arclist[-1][1] = len(self)
+            ocheck = ordercheck(len(self))
+            self.phasearcs[prn] = arclist = [a for a in arclist if ocheck(a)]
+            poplist = []  # indices to remove
+            for k, arc in enumerate(arclist):
+                good = True
+                numgood = [0, 0, 0, 0, 0]
+                for rec in range(arc[0], arc[1]):
+                    bad = self[rec].badness(prn)
+                    if bad > 100 and good:
+                        good = False
+                        oldend = arc[1]
+                        arc[1] = rec
+                    elif bad < 100 and not good:
+                        arclist.insert(k + 1, [rec, oldend])
+                        break  # process this arc in the next step
+                    if good and bad < 5:
+                        numgood[bad] += 1
+                if numgood[0] + numgood[1] < MINGOOD:
+                    poplist += [k]
+                elif len(arc) > 2:
+                    arc[2] = numgood
+                else:
+                    arc.append(numgood)
+            for k in poplist[::-1]:
+                arclist.pop(k)
+
+    def calctec(self):
+        '''
+        Calculate slant uncalibrated TEC and append as observation to records
+
+        TEC from carrier phase (L1, L2) is smooth but ambiguous.
+        TEC from code (pseudorange) (C1, C2) or encrypted code (P1, P2) is
+        absolute but noisy.  Phase data needs to be fitted to pseudorange data.
+        This function calculates the TEC for each PRN in each record, where
+        possible.
+        '''
+        self.sanearcs()
+        for prn, arclist in self.phasearcs.items():
+            for arc in arclist:
+                # We examine each value for `badness'.  We want at least 16
+                # values with badness < 2 to compute our average.
+                # The average does not include:
+                #  - Any values with badness > 4
+                #  - The worst 20% of the values, if their badness > 1
+                targ = (arc[1] - arc[0]) / 5
+                # we will omit at most `targ' bad measurements
+                leftout = (arc[1] - arc[0]) - sum(arc[2])
+                bound = 5
+                # we can omit records worse than this without exceeding targ
+                while leftout < targ and bound:
+                    bound -= 1
+                    leftout += arc[2][bound]
+                arcavg = 0.  # sum CTEC - PTEC over good members
+                arcnum = 0.
+                for s in range(arc[0], arc[1]):
+                    bad = self[s].badness(prn)
+                    if bad <= bound:
+                        arcavg += (self[s].ctec(prn) - self[s].ptec(prn))
+                        arcnum += 1.
+                arcavg = arcavg / arcnum
+                for s in range(arc[0], arc[1]):
+                    self[s][prn]['TEC'] = self[s].ptec(prn) + arcavg
+        # TODO: download and apply satellite corrections from CODE
+        #  (ftp://ftp.unibe.ch/aiub/CODE/)
+        # Scale to VTEC
+
+    def check(self, *args):
+        SatData.check(self, *args)
+        self.calctec()

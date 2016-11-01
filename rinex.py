@@ -583,7 +583,7 @@ def get_data(fid, is_crx=None):
             procheader(fid, rinex, obsdata.meta, len(obsdata),
                        range(record.numrec))
         elif 0 <= record.flag <= 1:
-            obsdata.newrecord(record.epoch, bool(record.flag), record.offset(fid))
+            obsdata.newrecord(record.epoch, powerfail=bool(record.flag), clockoffset=record.offset(fid))
             for prn in record.prnlist(fid):
                 dataline = record.dataline(prn, len(obsdata.obscodes()))
                 numobs = obspersat.setdefault(prn, {})
