@@ -9,7 +9,7 @@ for each satellite, and each frequency, observed.
     -a dictionary of dictionaries of all satellites and fields, per epoch
     -a dictionary, for a given satellite, for each epoch
     -a number, for a given satellite, frequency, and field, per epoch
-It also holds header information such as satellite system, observer name,
+The GPSData object also holds header information such as satellite system, observer name,
 marker position, times of first and last observations, no. of leap seconds,
 and so forth.
 
@@ -36,12 +36,18 @@ F2 = 1.22760  # L2 Frequency (GHz)
 C = 0.299792458  # speed of light in meters/nanosecond
 MINGOOD = 16  # Minimum number of usable records we need to use an arc
 
+GNSSYS = {'G' : 'GPS',
+          'R' : 'GLONASS',
+          'E' : 'Galileo',
+          'C' : 'BeiDou',
+          'S' : 'Geostationary',
+          'M' : 'Mixed'}
+
 def showwarn(message, category, filename, lineno, file=sys.stderr, line=None):
     """Output pretty warnings."""
     file.write('\n  * '.join(wrap('*** ' + str(message))) + '\n')
 
 warnings.showwarning = showwarn
-
 
 class Record(dict):
     '''
@@ -546,8 +552,7 @@ class GPSData(list):
             self.tzinfo = taitz
         baseyear = None
         if 'firsttime' in self.meta:
-            self.meta.firsttime = \
-                              self.meta.firsttime.replace(tzinfo=self.tzinfo)
+            self.meta.firsttime = self.meta.firsttime.replace(tzinfo=self.tzinfo)
             baseyear = self.meta.firsttime.year
         if 'endtime' in self.meta:
             self.meta.endtime = self.meta.endtime.replace(tzinfo=self.tzinfo)
@@ -653,17 +658,7 @@ class GPSData(list):
             hstr = 'File:\t\t\t' + self.meta.filename + '\n'
         else:
             hstr = ''
-        hstr += 'Satellite system:\t'
-        if self.satsystem == 'G':
-            hstr += 'GPS'
-        elif self.satsystem == 'E':
-            hstr += 'Galileo'
-        elif self.satsystem == 'R':
-            hstr += 'GLONASS'
-        elif self.satsystem == 'S':
-            hstr += 'Geostationary'
-        elif self.satsystem == 'M':
-            hstr += 'Mixed'
+        hstr += 'Satellite system:\t' + GNSSYS[self.satsystem]
         hstr += '\nTime system used:\t' + self.tzinfo.name
         hstr += '\nFirst record time:\t'
         hstr += self.meta.firsttime.strftime('%B %d, %Y %H:%M:%S')
