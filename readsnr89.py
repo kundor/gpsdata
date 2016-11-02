@@ -106,13 +106,14 @@ class snr89(UserList):
                        _gpssow(self.year, self.doy, self[index].sod))
 
 def _gpssow(year, doy, sod):
+    """Given UTC year, day of year, second of day, return GPS second of week."""
     dt = _todatetime(year, doy, sod)
     leaps = gpsleapsecsutc(dt)
     sod = (sod + leaps) % (60*60*24)
     return gpsdow(dt)*60*60*24 + sod
 
 def _todatetime(year, doy, sod):
-    return datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(days=doy - 1, seconds=sod)
+    return datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(days=doy-1, seconds=sod)
 
 @stdouttofile(log)
 def rewrite(odir, ndir=ndir, filename=None):
