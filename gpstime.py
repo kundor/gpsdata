@@ -347,6 +347,12 @@ class gpsdatetime(datetime):
         off = datetime.__sub__(self.replace(tzinfo=None), other.replace(tzinfo=None))
         off += taioffset(other) - taioffset(self)
         return off
+        
+    def __rsub__(self, other):
+        """Subtract self from a non-gps datetime object"""
+        if not isinstance(other, datetime):
+            return NotImplemented
+        return -(self.__sub__(other))
 
 
     def __eq__(self, other):
