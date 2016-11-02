@@ -265,6 +265,12 @@ def getgpstime(dt=None, tz=gpstz):
     if isinstance(dt, datetime) and not isinstance(dt, gpsdatetime):
         return gpsdatetime.copydt(dt, tz)
     return getutctime(dt, gpsdatetime, tz)
+    
+def taioffset(dt):
+    if isinstance(dt.tzinfo, TAIOffset):
+        return dt.tzinfo.offset
+    utcoff = dt.utcoffset()
+    return utcoff - timedelta(seconds=leapsecsutc(dt - utcoff))
 
 class gpsdatetime(datetime):
     """gpsdatetime(year, month, day, hour, minute, second, microsecond, tzinfo)
@@ -322,25 +328,26 @@ class gpsdatetime(datetime):
     def __sub__(self, other):
         """Subtract other gpsdatetime or datetime to produce timedelta,
         or subtract timedelta to produce gpsdatetime.
+        
+        If one or both timezones are TAIOffset, leap seconds are included
+        in the difference. Otherwise they're not.
         """
-        if isinstance(other, datetime):
-            if self.utcoffset() is None and other.utcoffset() is None:
-                return datetime.__sub__(self, other)
-            elif isinstance(self.tzinfo, TAIOffset) and isinstance(other.tzinfo, TAIOffset):
-                off = datetime.__sub__(self.replace(tzinfo=None), other.replace(tzinfo=None))
-                off += other.tzinfo.offset - self.tzinfo.offset
-                return off
-            elif self.utcoffset() is not None and other.utcoffset() is not None:
-                off = datetime.__sub__(self.replace(tzinfo=None),
-                                       other.replace(tzinfo=None))
-                off += other.utcoffset() - self.utcoffset()
-                return off
-            else:
-                raise TypeError('Cannot subtract naive datetime from '
-                                'aware datetime')
-        else:
-            crn = datetime.__sub__(self.replace(tzinfo=None), other)
-            return self.copydt(crn, self.tzinfo)
+        if not isinstance(other, datetime):
+            if isinstance(other, timedelta):
+                return self.__add__(-other)
+            return NotImplemented
+            
+        if isnaive(self) != isnaive(other):
+            raise TypeError('Cannot mix naive and timezone-aware datetimes')
+        
+        if isnaive(self) or (not isinstance(self.tzinfo, TAIOffset)
+                             and not isinstance(other.tzinfo, TAIOffset)):
+            return datetime.__sub__(self, other)
+
+        off = datetime.__sub__(self.replace(tzinfo=None), other.replace(tzinfo=None))
+        off += taioffset(other) - taioffset(self)
+        return off
+
 
     def __eq__(self, other):
         if self.utcoffset() is None and other.utcoffset() is None:
