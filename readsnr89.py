@@ -58,7 +58,7 @@ def parse88(line):
         raise ValueError(line + ' is not a valid snr## record')
     return Record(rngcheck(words[0], 'PRN', 1, 32, None, line),
                   fltcheck(words[1], 'elevation', 0, 90, line),
-                  fltcheck(words[2], 'azimuth', 0, 360, line),
+                  fltcheck(words[2], 'azimuth', 0, 360, line) % 360,
                   fltcheck(words[3], 'second of day', 0, 86400, line),
                   fltcheck(words[6], 'SNR', 0, 100, line))
 
