@@ -162,7 +162,7 @@ def rewrite(odir, ndir=ndir, filename=None):
             open(os.path.join(ndir, filename), 'wt') as newfid:
         for l in fid:
             try:
-                rec = parserec(l)
+                rec = parseint89(l)
             except ValueError as e:
                 print(e)
                 print('   (on line ' + str(fid.lineno) + ')')
