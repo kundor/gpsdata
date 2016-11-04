@@ -8,12 +8,12 @@ def posneg(arr):
     with no mixing. Return index of first negative entry."""
     neg = False
     for i, k in enumerate(arr):
-        if neg and k > 0:
-            print("{} (entry {}) is positive, after negative entry at {}!".format(k, i, ind))
-            return ind
         if not neg and k < 0:
             ind = i
             neg = True
+        if neg and k > 0:
+            print("{} (entry {}) is positive, after negative entry at {}!".format(k, i, ind))
+            return ind
     return ind
 
 def dorises(snrdata, prn):
@@ -57,9 +57,10 @@ def iterSNRs(SNRs):
             yield rec.az, rec.el, rec.snr
 
 def itergdo(gdo):
-    for r in gdo.iterlist(obscode=('az', 'el', 'S1')):
+    for r in gdo.iterlist(obscode=('az', 'el', 'S1'), skip=True):
         for rec in r:
-            yield rec
+            if rec[0] is not None:
+                yield rec
 
 def azelbin(iterfn, dat, scale=2):
     snravg = np.zeros((360*scale, 90*scale))
