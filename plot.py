@@ -87,7 +87,9 @@ def rises(el, sod, prn=None):
     starts = [-1] + np.argwhere(np.diff(sod) > 1000).ravel().tolist() + [len(difel)]
     riz = []
     for beg, end in zip(starts, starts[1:]):
-        if sod[end] - sod[beg] < 600: # less than 10 minute arc
+        if sod[end] - sod[beg+1] < 600: # less than 10 minute arc
+            print('Less than 10 minutes, PRN {}, {} to {} ({}--{})'.format(
+                prn, beg+1, end, sowdhrmin(sod[beg+1]), sowhrmin(sod[end])))
             continue
         peak = posneg(difel[beg+1:end])
         if peak == 0: # only falling elevations I guess
