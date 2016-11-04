@@ -71,14 +71,34 @@ def getutctime(dt=None, dtclass=datetime, tz=timezone.utc):
         return dt.astimezone(tz)
     raise ValueError("Don't know how to interpret this as time")
 
+
 def gpsweek(dt):
-    """Given UTC datetime, return GPS week number."""
-    return int((dt + timedelta(seconds=gpsleapsecsutc(dt)) - GPSepoch) / timedelta(weeks=1))
+    """Given aware datetime, return GPS week number."""
+    if not isinstance(dt.tzinfo, TAIOffset):
+        dt += timedelta(seconds=gpsleapsecsutc(dt))
+    return int((dt - GPSepoch) / timedelta(weeks=1))
+
+def _dow(dt):
+    return dt.isoweekday() % 7
 
 def gpsdow(dt):
-    """Given UTC datetime, return GPS Day of Week."""
-    return (dt + timedelta(seconds=gpsleapsecsutc(dt))).isoweekday() % 7
+    """Given aware datetime, return GPS day of week."""
+    return _dow(dt.astimezone(gpstz))
+    
+def _sod(dt):
+    return (dt.hour*60 + dt.minute)*60 + dt.second + dt.microsecond/1000000
 
+def gpssod(dt):
+    """Given aware datetime, return GPS second of day."""
+    return _sod(dt.astimezone(gpstz))
+   
+def _sow(dt):
+    return _dow(dt)*86400 + _sod(dt)
+    
+def gpssow(dt):
+    """Given aware datetime, return GPS second of week."""
+    return _sow(dt.astimezone(gpstz))
+    
 class LeapSeconds(dict):
     """A dictionary of datetimes : leap second adjustment.
 
