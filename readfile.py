@@ -37,8 +37,8 @@ def read_file(URL, format=None, verbose=False, gunzip=None, untar=None):
     tar archives.  Then simplistic extension-based format detection is used,
     unless the argument `format' is supplied.
     """
-    if os.path.isfile(URL):
-        filename = URL
+    if os.path.isfile(os.path.expanduser(URL)):
+        filename = os.path.expanduser(URL)
         if verbose:
             print('Local file', filename, 'used directly.')
     else:
