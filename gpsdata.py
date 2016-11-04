@@ -198,7 +198,7 @@ class SatData(list):
         self.allobs.add(obs)
         self[which].setdefault(prn, {})[obs] = val
 
-    def iterlist(self, sat=None, obscode=None):
+    def iterlist(self, sat=None, obscode=None, skip=False):
         """Return an iterator over the list of records.
 
         If a PRN is specified for `sat', iterates over lists of values for
@@ -246,13 +246,15 @@ class SatData(list):
 
         for record in self:
             if isinstance(obscode, (list, tuple)) and isinstance(sat, (list, tuple)):
-                yield [hichoose(s, record, obscode) for s in sat]
+                yield [hichoose(s, record, obscode) for s in sat if not skip or s in record]
             elif isinstance(obscode, (list, tuple)) and sat in record:
-                yield [chooser(obs, record, sat, 'epoch') for obs in obscode]
+                yield [chooser(obs, record, sat, 'epoch') for obs in obscode
+                        if not skip or obs in record[sat] or obs == 'epoch']
             elif obscode == 'epoch':
                 yield record['epoch']
             elif isinstance(sat, (list, tuple)):
-                yield [chooser(obscode, record, s) for s in sat]
+                yield [chooser(obscode, record, s) for s in sat
+                        if not skip or (s in record and obscode in record[s])]
             elif sat in record and obscode in record[sat]:
                 yield record[sat][obscode]
 
