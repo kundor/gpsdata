@@ -52,6 +52,17 @@ def satcoeffs(pl):
             cofns[prn] = coef_fn(pl, prn)
     return cofns
 
+def satcoeffs_between(dt0, dt1):
+    week = gpsweek(dt0)
+    sow0 = gpssow(dt0)
+    sow1 = gpssow(dt1)
+    week1 = gpsweek(dt1)
+    if week1 != week:
+        sow1 += (week1 - week)*604800
+    pl = poslist(week, sow0, sow1)
+    return satcoeffs(pl)
+
+
 def azeldeg(rxloc, sxloc):
     """Given two ECEF locations in meters, return azimuth and elevation in degrees."""
     az, el = enu2azel(xyz2enu(rxloc, sxloc))
@@ -68,5 +79,9 @@ def gpsazel(rxloc, prn, gpsweek, gpssow, cofns=None, pl=None):
         if pl is None:
             pl = poslist(gpsweek, gpssow)
         sx = satpos(pl, prn, totsec)
+    return azeldeg(rxloc, sx*1000)
+
+def gpsazel2(rxloc, interpfn, totsec):
+    sx = mvec(totsec) @ interpfn(totsec)
     return azeldeg(rxloc, sx*1000)
 

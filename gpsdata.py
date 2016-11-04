@@ -55,7 +55,7 @@ class Record(dict):
     this record) in addition to a dictionary (by PRN code)
     of dictionaries (by RINEX observation code, e.g. C1, L2) of values.
     Can access as record.epoch, record[13], record['G17'], or iteration.
-    """ 
+    """
     def __init__(self, epoch, **kwargs):
         """Set arbitrary fields by keyword arguments, e.g. motion, powerfail, clockoffset."""
         dict.__init__(self)
@@ -488,6 +488,30 @@ class SatData(list):
             hstr += '\n' + prn + '\t'
             hstr += '\t'.join(['%5d' % num for num in counts])
         return hstr
+
+    def addazel(self):
+        """Add observations az and el to each record."""
+        if 'az' in self.allobs or 'el' in self.allobs:
+            warn('addazel() called, but az and el observations are already present.')
+            return
+        from gpstime import _sod as gsod, gpsdatetime
+        if len(self.meta.markerpos) > 1:
+            warn('Receiver occupied more than one position; only first given location is used.')
+        rxloc = self.meta.markerpos[0]
+        cofns = satcoeffs_between(self[0].epoch, self[-1].epoch)
+        gday = self[0].epoch.replace(hour=0, minute=0, second=0, microsecond=0)
+        gpsepoch = gpsdatetime()
+        tsec0 = (gday - gpsepoch).total_seconds()
+        for rec in self:
+            totsec = tsec0 + gsod(rec.epoch)
+            for prn in rec:
+                if prn[0] != 'G':
+                    continue # only GPS satellites in sp3 data
+                az, el = gpsazel2(rxloc, cofns[prn], totsec)
+                rec[prn]['az'] = az
+                rec[prn]['el'] = el
+        self.allobs.add('az')
+        self.allobs.add('el')
 
 
 class GPSData(SatData):
