@@ -1,8 +1,8 @@
 from ftplib import FTP
 from urllib.request import urlretrieve
 import os
-from .gpstime import getutctime, gpsweek, gpsdow, dhours
-from .utility import decompress
+from gpstime import getutctime, gpsweek, gpsdow, dhours
+from utility import decompress
 
 sp3dir = '/scratch/sp3'
 

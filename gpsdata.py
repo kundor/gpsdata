@@ -23,8 +23,10 @@ import warnings
 from warnings import warn
 from textwrap import wrap
 
-from .utility import listvalue, metadict
-from .gpstime import leapseconds, gpstz, utctz, taitz
+from utility import listvalue, metadict
+from gpstime import leapseconds, gpstz, utctz, taitz, getgpstime
+from gpsazel import gpsazel2, satcoeffs_between
+
 
 TECUns = 2.854  # TECU/ns according to GPS-Scinda, Charles Carrano, 4-7-08
 # TECUns = 2.852  # TECU/ns according to TECalc_rinex, Pat Doherty, 2-21-94

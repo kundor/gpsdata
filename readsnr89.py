@@ -2,9 +2,9 @@ import os
 from collections import namedtuple, UserList
 import time
 from datetime import datetime, timedelta, timezone
-from .utility import fileread, stdouttofile
-from .gpsazel import gpsazel, poslist, satcoeffs
-from .gpstime import gpsweek, gpsdow, gpsleapsecsutc
+from utility import fileread, stdouttofile
+from gpsazel import gpsazel, poslist, satcoeffs
+from gpstime import gpsweek, gpsdow, gpsleapsecsutc
 
 sitelocs = {'vpr3' : (-1283649.0796, -4726431.0920, 4074789.6026),
             'p041' : (-1283634.1275, -4726427.8944, 4074798.0304),

@@ -21,12 +21,12 @@ from urllib.request import urlretrieve
 import tarfile
 import pickle
 from optparse import OptionParser
-from .utility import decompress
+from utility import decompress
 
-from .__init__ import __ver__
-from . import rinex
+from __init__ import __ver__
+import rinex
 try:
-    from . import plotter
+    import plotter
 except ImportError:
     pass
 

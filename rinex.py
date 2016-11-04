@@ -20,9 +20,9 @@ from copy import deepcopy
 from warnings import warn
 from collections import namedtuple
 
-from .utility import fileread, listvalue, value
-from .gpstime import gpsdatetime
-from .gpsdata import GPSData
+from utility import fileread, listvalue, value
+from gpstime import gpsdatetime
+from gpsdata import GPSData
 
 RNX_VER = '2.11'
 CR_VER = '1.0'
