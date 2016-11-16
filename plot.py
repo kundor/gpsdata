@@ -119,7 +119,7 @@ def rises(el, sod, prn=None):
             peak += beg + 1
         else:
             peak = end
-        if el[peak] < 15:
+        if el[peak] < 20:
             print('Max elevation {}, PRN {}, {} to {} ({}--{})'.format(
                 el[peak], prn, beg+1, end, sowdhrmin(sod[beg+1]), sowhrmin(sod[end])))
             continue
