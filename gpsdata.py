@@ -25,8 +25,6 @@ from textwrap import wrap
 
 from utility import listvalue, metadict
 from gpstime import leapseconds, gpstz, utctz, taitz, getgpstime
-from gpsazel import gpsazel2, satcoeffs_between
-
 
 TECUns = 2.854  # TECU/ns according to GPS-Scinda, Charles Carrano, 4-7-08
 # TECUns = 2.852  # TECU/ns according to TECalc_rinex, Pat Doherty, 2-21-94
@@ -495,6 +493,11 @@ class SatData(list):
         """Add observations az and el to each record."""
         if 'az' in self.allobs or 'el' in self.allobs:
             warn('addazel() called, but az and el observations are already present.')
+            return
+        try:
+            from gpstools.gpsazel import gpsazel2, satcoeffs_between
+        except ImportError:
+            warn('gpstools.gpsazel not found; cannot compute azimuths and elevations')
             return
         from gpstime import _sod as gsod, gpsdatetime
         if len(self.meta.markerpos) > 1:
