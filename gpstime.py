@@ -148,7 +148,7 @@ class LeapSeconds(dict):
             return True
         fid.close()
         if updtime > now:
-            warn(ValueError, 'Leap second data file is from the future.')
+            warn('Leap second data file is from the future.')
             return False
         elif updtime.month <= 6:
             target = datetime(updtime.year, 7, 1)
